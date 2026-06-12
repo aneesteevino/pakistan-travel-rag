@@ -1,0 +1,91 @@
+id,name,destination_id,category,duration,price_pkr,description,best_time
+1,Clifton Beach Visit,1,beach,"Half Day",500,"Relax at Karachi's most popular beach with camel rides and local food",Oct-Mar
+2,Frere Hall Tour,1,culture,"2 hours",300,"Visit historic British-era building with beautiful gardens",Oct-Mar  
+3,Karachi Food Street Tour,1,food,"3 hours",1500,"Explore Burns Road and other food streets for authentic Pakistani cuisine",Oct-Mar
+4,Pakistan Maritime Museum,1,culture,"3 hours",200,"Learn about Pakistan's naval history with submarine tours",Year-round
+5,Empress Market Shopping,1,shopping,"2 hours",0,"Browse traditional bazaar for spices, textiles and local goods",Oct-Mar
+6,Badshahi Mosque Visit,2,religion,"2 hours",0,"Explore one of world's largest mosques with stunning Mughal architecture",Oct-Mar
+7,Lahore Fort Tour,2,history,"3 hours",500,"Discover UNESCO World Heritage site with palaces and gardens",Oct-Mar
+8,Shalimar Gardens,2,culture,"2 hours",100,"Walk through beautiful Mughal gardens with fountains and pavilions",Oct-Mar
+9,Food Street Anarkali,2,food,"3 hours",1200,"Experience Lahore's famous food culture in historic bazaar",Oct-Mar
+10,Walled City Walking Tour,2,culture,"4 hours",2000,"Guided tour through old Lahore with heritage havelis",Oct-Mar
+11,Faisal Mosque Visit,3,religion,"1 hour",0,"Visit largest mosque in Pakistan with modern Islamic architecture",Year-round
+12,Margalla Hills Hiking,3,adventure,"4 hours",500,"Trek through hills with nature trails and city views","Mar-May,Oct-Nov"
+13,Pakistan Monument Tour,3,culture,"2 hours",200,"Explore national monument with museum and panoramic views",Year-round
+14,Lok Virsa Museum,3,culture,"3 hours",150,"Discover Pakistani folk heritage and traditional crafts",Year-round
+15,Daman-e-Koh Viewpoint,3,nature,"1 hour",300,"Scenic viewpoint overlooking Islamabad with photography opportunities",Year-round
+16,Altit Fort Visit,4,history,"2 hours",500,"Explore 1000-year-old fort with mountain valley views",Apr-Oct
+17,Hunza Cultural Walk,4,culture,"3 hours",1000,"Experience local culture, meet families, traditional music",Apr-Oct
+18,Karimabad Bazaar,4,shopping,"2 hours",0,"Shop for local handicrafts, dried fruits and gemstones",Apr-Oct
+19,Eagle Watching Tour,4,nature,"4 hours",2000,"Spot golden eagles and other wildlife in their natural habitat",Apr-Oct
+20,Apricot Orchard Visit,4,nature,"3 hours",800,"Visit local orchards during blooming season with cultural exchange",Mar-May
+21,K2 Base Camp Trek,5,adventure,"15 days",150000,"Ultimate trekking experience to base of world's second highest peak",Jun-Aug
+22,Satpara Lake Boating,5,nature,"3 hours",1500,"Boat ride on pristine alpine lake with mountain reflections",May-Sep
+23,Skardu Rock Climbing,5,adventure,"Full day",5000,"Rock climbing on dramatic cliff faces with expert guides",May-Sep
+24,Deosai Plains Safari,5,nature,"Full day",8000,"Wildlife safari to spot Himalayan brown bears and rare birds",Jun-Sep
+25,Shigar Fort Visit,5,history,"2 hours",400,"Explore converted fort now serving as heritage museum",May-Sep
+26,Mingora Archaeological Tour,6,history,"4 hours",1500,"Visit Buddhist ruins and Gandhara art sites",Apr-Oct
+27,Malam Jabba Skiing,6,adventure,"Full day",3000,"Ski resort with slopes for beginners and experienced skiers",Dec-Mar
+28,Kalam Valley Trek,6,adventure,"2 days",8000,"Multi-day trek through pristine valleys with camping",May-Sep
+29,Swat River Rafting,6,adventure,"4 hours",2500,"White water rafting on scenic mountain river",May-Aug
+30,Bahrain Waterfalls,6,nature,"3 hours",600,"Visit beautiful waterfalls in lush green valley setting",May-Sep
+31,Mall Road Walking,7,culture,"2 hours",0,"Stroll along famous colonial-era mall with shops and eateries",May-Sep
+32,Patriata Cable Car,7,adventure,"3 hours",1200,"Chairlift ride with panoramic views of surrounding hills",May-Sep
+33,Pindi Point Visit,7,nature,"2 hours",300,"Scenic viewpoint popular for photography and relaxation",May-Sep
+34,Kashmir Point,7,nature,"1 hour",200,"Historic viewpoint with views toward Kashmir valley",May-Sep
+35,Pine Forest Walk,7,nature,"3 hours",500,"Nature walk through dense pine forests with fresh mountain air",May-Sep
+36,Naltar Valley Skiing,8,adventure,"Full day",4000,"Ski on pristine slopes surrounded by colorful lakes",Dec-Mar
+37,Gilgit Bazaar Tour,8,shopping,"3 hours",0,"Explore vibrant market for local crafts, carpets and foods",Apr-Oct
+38,Kargah Buddha Visit,8,history,"2 hours",300,"See 7th century rock carving of Buddha in cliff face",Apr-Oct
+39,Jutial Village Tour,8,culture,"4 hours",1500,"Experience rural life and traditional Balti culture",Apr-Oct
+40,Bagrot Valley Trekking,8,adventure,"Full day",3000,"Day trek through unspoiled valley with glacier views",May-Sep
+41,Keran Sector Visit,9,nature,"Full day",4000,"Visit beautiful riverside locations near Line of Control",May-Sep
+42,Kel Village Tour,9,culture,"6 hours",2500,"Remote village experience with local hospitality",May-Sep
+43,Ratti Gali Lake Trek,9,adventure,"2 days",12000,"High altitude lake trek through alpine meadows",Jun-Aug
+44,Neelum River Trout Fishing,9,adventure,"4 hours",1800,"Catch rainbow trout in crystal clear mountain streams",May-Sep
+45,Sharda University Ruins,9,history,"2 hours",500,"Explore ancient Sanskrit learning center ruins",May-Sep
+46,Nanga Parbat View Trek,10,adventure,"3 days",25000,"Close encounter trekking to Killer Mountain viewpoint",Jun-Sep
+47,Camping Under Stars,10,nature,"Overnight",3000,"Experience pristine night skies away from city lights",Jun-Sep
+48,Alpine Meadow Photography,10,nature,"Full day",2000,"Photography tour of wildflower meadows and peaks",Jul-Aug
+49,Local Shepherd Experience,10,culture,"Half day",1500,"Meet local shepherds and learn about mountain life",Jun-Sep
+50,Beyal Camp Trek,10,adventure,"Full day",4000,"Trek to higher camps with spectacular mountain panoramas",Jun-Sep
+51,Lake Saif ul Mulook,11,nature,"Full day",3000,"Visit Pakistan's most famous alpine lake by jeep and boat",May-Sep
+52,Lulusar Lake Visit,11,nature,"Half day",2000,"High altitude lake accessible by road with stunning views",May-Sep
+53,Naran Valley Jeep Safari,11,adventure,"Full day",5000,"Off-road adventure through dramatic mountain landscapes",May-Sep
+54,Kaghan Valley Trekking,11,adventure,"2 days",8000,"Multi-day trek through pristine valleys and forests",May-Sep
+55,Batakundi Village Stay,11,culture,"Overnight",2500,"Traditional village experience with local families",May-Sep
+56,Kalash Festival Tour,12,culture,"3 days",15000,"Experience unique Kalash festivals and ancient traditions",May,Aug,Dec
+57,Tirich Mir Base Camp,12,adventure,"7 days",50000,"Trek to base camp of Pakistan's highest peak",Jun-Aug
+58,Garam Chashma Hot Springs,12,nature,"Half day",800,"Natural hot springs with therapeutic mountain water",Apr-Oct
+59,Chitral Museum Visit,12,culture,"2 hours",200,"Learn about local history and Kalash culture artifacts",Apr-Oct
+60,Shandur Polo Festival,12,culture,"3 days",20000,"World's highest polo ground with annual tournament",Jul
+61,Gwadar Port Tour,13,culture,"3 hours",1000,"Explore modern port development and fishing harbor",Oct-Mar
+62,Hingol National Park,13,nature,"Full day",5000,"Wildlife safari in largest national park with unique rock formations",Oct-Mar
+63,Princess of Hope Rock,13,nature,"Half day",1500,"Visit famous natural rock formation resembling human figure",Oct-Mar
+64,Gwadar Beach Activities,13,beach,"Full day",2000,"Beach camping, fishing and water sports on Arabian Sea",Oct-Mar
+65,Makran Coastal Drive,13,adventure,"Full day",3000,"Scenic coastal road trip with dramatic cliff views",Oct-Mar
+66,Shah Rukn-e-Alam Shrine,14,religion,"2 hours",0,"Visit beautiful Sufi shrine with intricate tile work",Oct-Mar
+67,Multan Fort Exploration,14,history,"3 hours",300,"Explore ancient fort with archaeological significance",Oct-Mar
+68,Blue Pottery Workshop,14,culture,"4 hours",2000,"Learn traditional Multani pottery making techniques",Oct-Mar
+69,Sufi Music Evening,14,culture,"3 hours",1500,"Experience mystical Sufi qawwali performances",Oct-Mar
+70,Chenab River Boating,14,nature,"3 hours",1200,"Peaceful boat ride on historic river with bird watching",Oct-Mar
+71,Noor Mahal Palace,15,history,"2 hours",500,"Tour magnificent 19th century palace with Italian architecture",Oct-Mar
+72,Cholistan Desert Safari,15,adventure,"2 days",15000,"Camel safari in Thar desert with camping under stars",Oct-Mar
+73,Derawar Fort Visit,15,history,"3 hours",800,"Explore impressive 9th century square fort in desert",Oct-Mar
+74,Desert Cultural Show,15,culture,"Evening",2500,"Traditional folk music and dance performances",Oct-Mar
+75,Lal Sohanra National Park,15,nature,"Full day",2000,"Wildlife park with blackbuck, deer and bird watching",Oct-Mar
+76,Qissa Khwani Bazaar,16,shopping,"3 hours",0,"Historic storytellers bazaar with traditional crafts",Oct-Mar
+77,Peshawar Museum Tour,16,culture,"3 hours",200,"Excellent Gandhara art collection and Buddhist artifacts",Oct-Mar
+78,Bala Hissar Fort,16,history,"2 hours",300,"Ancient Mughal fort with city views and historical significance",Oct-Mar
+79,Khyber Pass Tour,16,history,"Half day",8000,"Historic mountain pass with tribal area cultural experience",Oct-Mar
+80,Mahabat Khan Mosque,16,religion,"1 hour",0,"Beautiful 17th century Mughal mosque with intricate design",Oct-Mar
+81,Hazarganji Chiltan Park,17,nature,"Full day",1500,"National park famous for Chiltan markhor and juniper forests",Apr-Oct
+82,Quetta Bazaar Walk,17,shopping,"3 hours",0,"Traditional market famous for dry fruits and Balochi handicrafts",Apr-Oct
+83,Ziarat Juniper Forest,17,nature,"Full day",2500,"World's second largest juniper forest with ancient trees",Apr-Oct
+84,Hanna Lake Picnic,17,nature,"Half day",800,"Artificial lake surrounded by mountains, popular for boating",Apr-Oct
+85,Chiltan Hill Trekking,17,adventure,"Full day",3000,"Challenging trek with panoramic views of Quetta valley",Apr-Oct
+86,Raja Bazaar Shopping,18,shopping,"3 hours",0,"Bustling traditional market for textiles, spices and crafts",Oct-Mar
+87,Ayub National Park,18,nature,"Half day",300,"Large park with lake, gardens and recreational facilities",Oct-Mar
+88,Army Museum Visit,18,culture,"2 hours",200,"Military history museum with weapons and war memorabilia",Oct-Mar
+89,Taxila Day Trip,18,history,"Full day",3000,"UNESCO World Heritage Buddhist archaeological sites",Oct-Mar
+90,Gordon College Heritage,18,culture,"2 hours",400,"Historic colonial educational institution with architecture tour",Oct-Mar
