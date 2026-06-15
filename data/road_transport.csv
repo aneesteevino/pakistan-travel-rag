@@ -1,0 +1,25 @@
+operator,departure_city,arrival_city,vehicle_type,fare_pkr,duration_hours,contact_number
+Faisal Movers,Lahore,Islamabad,Executive,2600,4.5,+92-42-111-22-44-88
+Faisal Movers,Lahore,Islamabad,Business,3200,4.5,+92-42-111-22-44-88
+Faisal Movers,Lahore,Islamabad,Sleeper,4200,5.0,+92-42-111-22-44-88
+Daewoo Express,Lahore,Islamabad,Luxury,2700,4.5,+92-42-111-007-008
+Daewoo Express,Islamabad,Swat,Super Luxury,1800,3.5,+92-51-111-007-008
+NATCO,Islamabad,Gilgit,Standard,3500,14.0,+92-51-9262244
+NATCO,Gilgit,Hunza,Coaster,600,2.0,+92-5811-920210
+NATCO,Gilgit,Skardu,Coaster,1200,5.0,+92-5811-920210
+Daewoo Express,Rawalpindi,Murree,Standard,800,1.5,+92-51-111-007-008
+Bilal Travel,Lahore,Peshawar,Executive,2400,6.0,+92-42-111-287-287
+Faisal Movers,Karachi,Lahore,Business Sleeper,8500,16.0,+92-21-111-22-44-88
+Faisal Movers,Karachi,Islamabad,Business Sleeper,9500,20.0,+92-21-111-22-44-88
+Bilal Travel,Lahore,Multan,Standard,1500,4.0,+92-42-111-287-287
+Faisal Movers,Quetta,Karachi,Standard,2500,10.0,+92-81-111-22-44-88
+NATCO,Islamabad,Hunza,Executive,4500,16.0,+92-51-9262244
+Daewoo Express,Lahore,Multan,Luxury,1700,4.0,+92-42-111-007-008
+Daewoo Express,Islamabad,Peshawar,Standard,900,2.5,+92-51-111-007-008
+Faisal Movers,Islamabad,Hunza,Standard,4000,16.0,+92-51-111-22-44-88
+NATCO,Islamabad,Skardu,Standard,4200,18.0,+92-51-9262244
+Daewoo Express,Rawalpindi,Abbottabad,Standard,750,2.5,+92-51-111-007-008
+Local Coasters,Peshawar,Swat,Standard,600,4.0,N/A
+NATCO,Gilgit,Rawalpindi,Executive,3800,15.0,+92-5811-920210
+Faisal Movers,Multan,Islamabad,Executive,2200,5.5,+92-61-111-22-44-88
+Daewoo Express,Karachi,Peshawar,Luxury,9800,26.0,+92-21-111-007-008

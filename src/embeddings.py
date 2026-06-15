@@ -40,13 +40,13 @@ class EmbeddingEngine:
     def _build_pipeline(self) -> Pipeline:
         return Pipeline([
             ("tfidf", TfidfVectorizer(
-                ngram_range=(1, 2),
-                max_features=40_000,
+                ngram_range=(1, 1),
+                max_features=8_000,
                 sublinear_tf=True,
                 strip_accents="unicode",
                 analyzer="word",
                 token_pattern=r"\b[a-zA-Z][a-zA-Z0-9]*\b",
-                min_df=1,
+                min_df=2,
             )),
             ("svd", TruncatedSVD(n_components=_EMBED_DIM, random_state=42)),
         ])
@@ -90,6 +90,10 @@ class EmbeddingEngine:
     @property
     def dimension(self) -> int:
         return _EMBED_DIM
+
+    @property
+    def is_fitted(self) -> bool:
+        return self._fitted
 
 
 # ── Module-level singleton ─────────────────────────────────────────────────

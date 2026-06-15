@@ -63,7 +63,7 @@ class VectorStore:
         logger.info("Saved FAISS index → %s", _INDEX_FILE)
 
     def load(self) -> bool:
-        if not _INDEX_FILE.exists() or not _META_FILE.exists():
+        if not _INDEX_FILE.exists() or not _META_FILE.exists() or not self._engine.is_fitted:
             return False
         try:
             self._index = faiss.read_index(str(_INDEX_FILE))
