@@ -37,31 +37,36 @@ class EmbeddingEngine:
         self._pipeline: Pipeline | None = None
         self._fitted: bool = False
 
-    def _build_pipeline(self) -> Pipeline:
+    def _build_pipeline(self, n_texts: int = 1000) -> Pipeline:
+        # Dynamic SVD components based on corpus size
+        max_components = min(_EMBED_DIM, n_texts // 2, 8000)  # Ensure reasonable limits
+        svd_components = max(50, min(max_components, _EMBED_DIM))  # At least 50, at most _EMBED_DIM
+        
         return Pipeline([
             ("tfidf", TfidfVectorizer(
                 ngram_range=(1, 1),
-                max_features=8_000,
+                max_features=min(8_000, n_texts * 10),  # Scale features with corpus size
                 sublinear_tf=True,
                 strip_accents="unicode",
                 analyzer="word",
                 token_pattern=r"\b[a-zA-Z][a-zA-Z0-9]*\b",
-                min_df=2,
+                min_df=1,  # Reduced from 2 for small corpora
             )),
-            ("svd", TruncatedSVD(n_components=_EMBED_DIM, random_state=42)),
+            ("svd", TruncatedSVD(n_components=svd_components, random_state=42)),
         ])
 
     def fit(self, texts: List[str]) -> None:
         """Fit the TF-IDF + SVD pipeline on the corpus."""
         logger.info("Fitting TF-IDF+SVD pipeline on %d texts…", len(texts))
-        self._pipeline = self._build_pipeline()
+        self._pipeline = self._build_pipeline(len(texts))
         self._pipeline.fit(texts)
         self._fitted = True
         # Persist
         _CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
         with open(_CACHE_FILE, "wb") as f:
             pickle.dump(self._pipeline, f)
-        logger.info("Embedding pipeline fitted and cached.")
+        logger.info("Embedding pipeline fitted and cached with %d SVD components.", 
+                   self._pipeline.named_steps['svd'].n_components)
 
     def _load_cached(self) -> bool:
         if not _CACHE_FILE.exists():
@@ -89,6 +94,8 @@ class EmbeddingEngine:
 
     @property
     def dimension(self) -> int:
+        if self._pipeline and self._fitted:
+            return self._pipeline.named_steps['svd'].n_components
         return _EMBED_DIM
 
     @property

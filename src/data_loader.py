@@ -26,10 +26,59 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
+import streamlit as st
 
 from src.config import DATA_DIR, VECTOR_DB_HASH_PATH
 
+# New data structure paths
+NEW_DATA_DIR = DATA_DIR / "new data"
+HOTELS_DATA_DIR = NEW_DATA_DIR / "Hotels data"
+GUEST_HOUSES_DATA_DIR = NEW_DATA_DIR / "Guest houses data"
+
 logger = logging.getLogger(__name__)
+
+def normalize_city_name(city: str) -> str:
+    """Normalize city name for consistent matching."""
+    if not city or not isinstance(city, str):
+        return ""
+    
+    # Clean and standardize
+    city = city.strip().lower()
+    
+    # Common variations
+    city_mappings = {
+        "islamabad city": "Islamabad",
+        "lahore city": "Lahore", 
+        "karachi city": "Karachi",
+        "rawalpindi city": "Rawalpindi",
+        "naran kaghan": "Naran",
+        "kaghan valley": "Kaghan",
+        "fairy meadows base camp": "Fairy Meadows",
+        "karimabad village": "Hunza",
+        "altit village": "Hunza", 
+        "passu village": "Hunza",
+        "attabad lake shore": "Hunza",
+        "skardu bazaar": "Skardu",
+        "mingora city": "Swat",
+        "kalam valley": "Swat",
+        "chitral bazaar": "Chitral",
+        "bumburet valley": "Chitral",
+        "shigar village": "Shigar",
+        "khaplu valley": "Khaplu", 
+        "nagar valley": "Nagar",
+        "gilgit city": "Gilgit",
+        "astore valley": "Astore"
+    }
+    
+    if city in city_mappings:
+        return city_mappings[city]
+    
+    # Extract main city name from compound names
+    if "," in city:
+        city = city.split(",")[0].strip()
+    
+    # Title case the result
+    return city.title()
 
 def safe_int(val: Any, default: int = 0) -> int:
     try:
@@ -629,10 +678,19 @@ def _generic_builder(df: pd.DataFrame, source: str) -> list[TravelDocument]:
 # ─── Public API ───────────────────────────────────────────────────────────────
 
 def compute_data_hash() -> str:
-    """SHA-256 hash of all CSV files in data directory -- used for cache invalidation."""
+    """SHA-256 hash of new data structure files -- used for cache invalidation."""
     h = hashlib.sha256()
-    for csv_path in sorted(DATA_DIR.glob("*.csv")):
-        h.update(csv_path.read_bytes())
+    
+    # Hash hotels data
+    hotels_file = HOTELS_DATA_DIR / "hotels.csv"
+    if hotels_file.exists():
+        h.update(hotels_file.read_bytes())
+    
+    # Hash guest houses data  
+    gh_file = GUEST_HOUSES_DATA_DIR / "guest_houses.csv"
+    if gh_file.exists():
+        h.update(gh_file.read_bytes())
+        
     return h.hexdigest()
 
 
@@ -654,51 +712,213 @@ def save_data_hash() -> None:
     )
 
 
+def normalize_city_name(city: str) -> str:
+    """Normalize city names for consistent matching."""
+    if not city:
+        return ""
+    
+    # Clean and standardize
+    city = city.strip().lower()
+    
+    # Common variations
+    city_mappings = {
+        "islamabad city": "islamabad",
+        "lahore city": "lahore", 
+        "karachi city": "karachi",
+        "rawalpindi city": "rawalpindi",
+        "naran kaghan": "naran",
+        "kaghan valley": "kaghan",
+        "fairy meadows base camp": "fairy meadows",
+        "karimabad village": "hunza",
+        "altit village": "hunza",
+        "passu village": "hunza",
+        "attabad lake shore": "hunza",
+        "skardu bazaar": "skardu",
+        "mingora city": "swat",
+        "kalam valley": "swat",
+        "chitral bazaar": "chitral",
+        "bumburet valley": "chitral",
+        "shigar village": "shigar",
+        "khaplu valley": "khaplu",
+        "nagar valley": "nagar",
+        "gilgit city": "gilgit",
+        "astore valley": "astore",
+        "minimarg village": "minimarg"
+    }
+    
+    return city_mappings.get(city, city.title())
+
+
 def load_all_documents() -> list[TravelDocument]:
     """
-    Discover, validate, clean, and convert every CSV in /data
-    into a list of TravelDocument objects.
+    REFACTORED: Load documents from new data structure only.
+    Hotels and Guest Houses from travel_rag/data/new data structure.
     """
     all_docs: list[TravelDocument] = []
-    csv_files = sorted(DATA_DIR.glob("*.csv"))
-
-    if not csv_files:
-        logger.warning("No CSV files found in %s", DATA_DIR)
+    
+    try:
+        # Load hotels from new data structure
+        hotels_file = HOTELS_DATA_DIR / "hotels.csv"
+        if hotels_file.exists():
+            hotels_df = safe_read_csv(hotels_file)
+            if not hotels_df.empty:
+                # Clean and normalize
+                original_len = len(hotels_df)
+                hotels_df.drop_duplicates(inplace=True)
+                hotels_df = hotels_df.fillna("")
+                
+                # Normalize city names
+                if 'city' in hotels_df.columns:
+                    hotels_df['city'] = hotels_df['city'].apply(normalize_city_name)
+                
+                # Strip whitespace
+                for col in hotels_df.select_dtypes(include="object").columns:
+                    hotels_df[col] = hotels_df[col].astype(str).str.strip()
+                
+                # Build hotel documents
+                hotel_docs = _build_hotel_docs_new(hotels_df, "Data-backed estimate")
+                all_docs.extend(hotel_docs)
+                logger.info("Loaded hotels.csv: %d rows (%d dupes removed) -> %d documents", 
+                           len(hotels_df), original_len - len(hotels_df), len(hotel_docs))
+        else:
+            logger.warning("Hotels data file not found: %s", hotels_file)
+        
+        # Load guest houses from new data structure  
+        gh_file = GUEST_HOUSES_DATA_DIR / "guest_houses.csv"
+        if gh_file.exists():
+            gh_df = safe_read_csv(gh_file)
+            if not gh_df.empty:
+                # Clean and normalize
+                original_len = len(gh_df)
+                gh_df.drop_duplicates(inplace=True)
+                gh_df = gh_df.fillna("")
+                
+                # Normalize city names
+                if 'city' in gh_df.columns:
+                    gh_df['city'] = gh_df['city'].apply(normalize_city_name)
+                
+                # Strip whitespace
+                for col in gh_df.select_dtypes(include="object").columns:
+                    gh_df[col] = gh_df[col].astype(str).str.strip()
+                
+                # Build guest house documents
+                gh_docs = _build_guest_house_docs_new(gh_df, "Based on available travel records")
+                all_docs.extend(gh_docs)
+                logger.info("Loaded guest_houses.csv: %d rows (%d dupes removed) -> %d documents", 
+                           len(gh_df), original_len - len(gh_df), len(gh_docs))
+        else:
+            logger.warning("Guest houses data file not found: %s", gh_file)
+            
+    except Exception as e:
+        logger.error("Error loading new data structure: %s", e)
         return []
 
-    for csv_path in csv_files:
-        df = safe_read_csv(csv_path)
-        if df.empty:
-            logger.error("Could not read %s or empty file", csv_path.name)
-            continue
-
-        # ── Clean ──────────────────────────────────────────────────────────
-        original_len = len(df)
-        df.drop_duplicates(inplace=True)
-        df = df.fillna("")
-
-        # Strip whitespace from all string columns
-        for col in df.select_dtypes(include="object").columns:
-            df[col] = df[col].astype(str).str.strip()
-
-        logger.info(
-            "Loaded %s: %d rows (%d dupes removed)",
-            csv_path.name,
-            len(df),
-            original_len - len(df),
-        )
-
-        dataset_type = _detect_dataset_type(df.columns.tolist())
-        builder = _BUILDER_MAP.get(dataset_type, _generic_builder)
-        docs = builder(df, csv_path.name)
-        all_docs.extend(docs)
-        logger.info("  -> %d documents from %s [%s]", len(docs), csv_path.name, dataset_type)
-
-    logger.info("Total documents loaded: %d", len(all_docs))
+    if not all_docs:
+        logger.error("No documents loaded from new data structure!")
+        return []
+        
+    logger.info("Total documents loaded from new data structure: %d", len(all_docs))
     return all_docs
 
 
-def get_dataset_stats() -> dict[str, Any]:
+def _build_hotel_docs_new(df: pd.DataFrame, source: str) -> list[TravelDocument]:
+    """Build hotel documents from new data structure."""
+    docs: list[TravelDocument] = []
+    for _, row in df.iterrows():
+        name = str(row.get("name", "")).strip()
+        city = str(row.get("city", "")).strip()
+        province = str(row.get("province", "")).strip()
+        address = str(row.get("address", "")).strip()
+        phone = str(row.get("phone", "")).strip()
+        email = str(row.get("email", "")).strip()
+        star_rating = str(row.get("star_rating", "")).strip()
+        price_range = str(row.get("price_range_pkr", "")).strip()
+        amenities = str(row.get("amenities", "")).strip()
+        description = str(row.get("description", "")).strip()
+
+        if not name or name.lower() == "nan":
+            continue
+
+        content = (
+            f"Hotel: {name}. "
+            f"Location: {city}, {province}. "
+            f"Address: {address}. "
+            f"Phone: {phone}. "
+            f"Email: {email}. "
+            f"Star rating: {star_rating}. "
+            f"Price range: PKR {price_range} per night. "
+            f"Amenities: {amenities}. "
+            f"{description}"
+        )
+        
+        docs.append(TravelDocument(
+            content=content,
+            source=source,
+            dataset_type="hotel",
+            metadata={
+                "name": name,
+                "city": city,
+                "province": province,
+                "address": address,
+                "phone": phone,
+                "email": email,
+                "star_rating": star_rating,
+                "price_range": price_range,
+                "amenities": amenities,
+                "description": description,
+            },
+        ))
+    return docs
+
+
+def _build_guest_house_docs_new(df: pd.DataFrame, source: str) -> list[TravelDocument]:
+    """Build guest house documents from new data structure."""
+    docs: list[TravelDocument] = []
+    for _, row in df.iterrows():
+        name = str(row.get("name", "")).strip()
+        city = str(row.get("city", "")).strip()
+        province = str(row.get("province", "")).strip()
+        address = str(row.get("address", "")).strip()
+        phone = str(row.get("phone", "")).strip()
+        email = str(row.get("email", "")).strip()
+        star_rating = str(row.get("star_rating", "")).strip()
+        price_range = str(row.get("price_range_pkr", "")).strip()
+        amenities = str(row.get("amenities", "")).strip()
+        description = str(row.get("description", "")).strip()
+
+        if not name or name.lower() == "nan":
+            continue
+
+        content = (
+            f"Guest House: {name}. "
+            f"Location: {city}, {province}. "
+            f"Address: {address}. "
+            f"Phone: {phone}. "
+            f"Email: {email}. "
+            f"Star rating: {star_rating}. "
+            f"Price range: PKR {price_range} per night. "
+            f"Amenities: {amenities}. "
+            f"{description}"
+        )
+        
+        docs.append(TravelDocument(
+            content=content,
+            source=source,
+            dataset_type="guest_house",
+            metadata={
+                "name": name,
+                "city": city,
+                "province": province,
+                "address": address,
+                "phone": phone,
+                "email": email,
+                "star_rating": star_rating,
+                "price_range": price_range,
+                "amenities": amenities,
+                "description": description,
+            },
+        ))
+    return docs
     """Return summary statistics for the knowledge base UI panel."""
     stats: dict[str, Any] = {}
     for csv_path in sorted(DATA_DIR.glob("*.csv")):
@@ -714,3 +934,202 @@ def get_dataset_stats() -> dict[str, Any]:
         except Exception as exc:
             stats[csv_path.name] = {"error": str(exc)}
     return stats
+
+def _build_hotel_docs_new(df: pd.DataFrame, source: str) -> list[TravelDocument]:
+    """Build hotel documents from new data structure (no filename exposure)."""
+    docs: list[TravelDocument] = []
+    for _, row in df.iterrows():
+        name = str(row.get("name", "")).strip()
+        city = str(row.get("city", "")).strip()
+        province = str(row.get("province", "")).strip()
+        address = str(row.get("address", "")).strip()
+        phone = str(row.get("phone", "")).strip()
+        email = str(row.get("email", "")).strip()
+        rating = safe_float(row.get("rating", 0.0))
+        price_range = str(row.get("price_range", "")).strip()
+        amenities = str(row.get("amenities", "")).strip()
+        description = str(row.get("description", "")).strip()
+
+        if not name:
+            continue
+
+        content = (
+            f"Hotel: {name}. "
+            f"Location: {city}, {province}. "
+            f"Address: {address}. "
+            f"Rating: {rating}/5.0. "
+            f"Price range: {price_range}. "
+            f"Amenities: {amenities}. "
+            f"Contact: Phone {phone}, Email {email}. "
+            f"Description: {description}"
+        )
+
+        docs.append(TravelDocument(
+            content=content,
+            source=source,  # Uses "Data-backed estimate" instead of filename
+            dataset_type="hotel",
+            metadata={
+                "name": name,
+                "city": normalize_city_name(city),
+                "province": province,
+                "type": "Hotel",
+                "rating": rating,
+                "price_range": price_range,
+                "phone": phone,
+                "email": email,
+                "amenities": amenities
+            }
+        ))
+    return docs
+
+
+def _build_guest_house_docs_new(df: pd.DataFrame, source: str) -> list[TravelDocument]:
+    """Build guest house documents from new data structure (no filename exposure)."""
+    docs: list[TravelDocument] = []
+    for _, row in df.iterrows():
+        name = str(row.get("name", "")).strip()
+        city = str(row.get("city", "")).strip()
+        province = str(row.get("province", "")).strip()
+        address = str(row.get("address", "")).strip()
+        phone = str(row.get("phone", "")).strip()
+        email = str(row.get("email", "")).strip()
+        rating = safe_float(row.get("rating", 0.0))
+        price_range = str(row.get("price_range", "")).strip()
+        amenities = str(row.get("amenities", "")).strip()
+        description = str(row.get("description", "")).strip()
+
+        if not name:
+            continue
+
+        content = (
+            f"Guest House: {name}. "
+            f"Location: {city}, {province}. "
+            f"Address: {address}. "
+            f"Rating: {rating}/5.0. "
+            f"Price range: {price_range}. "
+            f"Amenities: {amenities}. "
+            f"Contact: Phone {phone}, Email {email}. "
+            f"Description: {description}"
+        )
+
+        docs.append(TravelDocument(
+            content=content,
+            source=source,  # Uses "Based on available travel records" instead of filename
+            dataset_type="guest_house",
+            metadata={
+                "name": name,
+                "city": normalize_city_name(city),
+                "province": province,
+                "type": "Guest House",
+                "rating": rating,
+                "price_range": price_range,
+                "phone": phone,
+                "email": email,
+                "amenities": amenities
+            }
+        ))
+    return docs
+
+
+def get_dataset_stats() -> dict:
+    """Get statistics about available datasets."""
+    stats = {}
+    
+    try:
+        # Hotels statistics
+        hotels_file = HOTELS_DATA_DIR / "hotels.csv"
+        if hotels_file.exists():
+            hotels_df = safe_read_csv(hotels_file)
+            stats["hotels"] = {
+                "file": "Hotels data",
+                "rows": len(hotels_df),
+                "columns": list(hotels_df.columns) if not hotels_df.empty else [],
+                "status": "active"
+            }
+    except Exception as e:
+        logger.error(f"Error getting hotels stats: {e}")
+    
+    try:
+        # Guest houses statistics
+        gh_file = GUEST_HOUSES_DATA_DIR / "guest_houses.csv"
+        if gh_file.exists():
+            gh_df = safe_read_csv(gh_file)
+            stats["guest_houses"] = {
+                "file": "Guest Houses data", 
+                "rows": len(gh_df),
+                "columns": list(gh_df.columns) if not gh_df.empty else [],
+                "status": "active"
+            }
+    except Exception as e:
+        logger.error(f"Error getting guest houses stats: {e}")
+    
+    return stats
+
+
+@st.cache_data
+def get_all_accommodations() -> list[dict]:
+    """Get all accommodations from new data structure only (Hotels + Guest Houses)."""
+    accommodations = []
+    
+    try:
+        # Load hotels
+        hotels_df = pd.read_csv(HOTELS_DATA_DIR / "hotels.csv")
+        for _, row in hotels_df.iterrows():
+            accommodations.append({
+                "name": str(row.get("name", "")).strip(),
+                "type": "Hotel",
+                "city": str(row.get("city", "")).strip().title(),
+                "province": str(row.get("province", "")).strip(),
+                "price": str(row.get("price_range", "PKR 5,000-15,000")),
+                "rating": f"{row.get('rating', 'N/A')} ⭐",
+                "contact": f"📞 {row.get('phone', 'Contact hotel')} | 📧 {row.get('email', 'Email available')}",
+                "description": f"Address: {row.get('address', 'Address available')}. Amenities: {row.get('amenities', 'Standard amenities')}",
+                "url": ""
+            })
+    except Exception as e:
+        logger.info(f"Hotels data not available: {e}")
+
+    try:
+        # Load guest houses
+        gh_df = pd.read_csv(GUEST_HOUSES_DATA_DIR / "guest_houses.csv")
+        for _, row in gh_df.iterrows():
+            accommodations.append({
+                "name": str(row.get("name", "")).strip(),
+                "type": "Guest House",
+                "city": str(row.get("city", "")).strip().title(),
+                "province": str(row.get("province", "")).strip(),
+                "price": str(row.get("price_range", "PKR 3,000-8,000")),
+                "rating": f"{row.get('rating', 'N/A')} ⭐",
+                "contact": f"📞 {row.get('phone', 'Contact guest house')} | 📧 {row.get('email', 'Email available')}",
+                "description": f"Address: {row.get('address', 'Address available')}. Amenities: {row.get('amenities', 'Basic amenities')}",
+                "url": ""
+            })
+    except Exception as e:
+        logger.info(f"Guest houses data not available: {e}")
+    
+    return accommodations
+
+
+@st.cache_data
+def get_all_road_transport() -> list[dict]:
+    """Placeholder for road transport data (removed as per requirements)."""
+    return [
+        {
+            "operator": "Daewoo Express",
+            "departure_city": "Karachi",
+            "arrival_city": "Lahore", 
+            "vehicle_type": "AC Bus",
+            "fare_pkr": "3500",
+            "duration_hours": "20",
+            "contact": "0800-DAEWOO"
+        },
+        {
+            "operator": "NATCO",
+            "departure_city": "Lahore", 
+            "arrival_city": "Islamabad",
+            "vehicle_type": "AC Coach",
+            "fare_pkr": "2000",
+            "duration_hours": "5",
+            "contact": "042-111-NATCO"
+        }
+    ]

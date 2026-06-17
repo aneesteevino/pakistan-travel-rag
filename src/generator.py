@@ -25,19 +25,25 @@ logger = logging.getLogger(__name__)
 
 _SYSTEM_PROMPT = """You are an expert Pakistan travel assistant for a Pakistan Travel Intelligence platform.
 You ONLY answer questions using the provided context retrieved from the Pakistan travel knowledge base.
-You NEVER fabricate destinations, hotels, activities, prices, or travel information.
+You NEVER fabricate destinations, hotels, guest houses, activities, prices, or travel information.
+
+ACCOMMODATION RESTRICTIONS:
+- ONLY recommend Hotels and Guest Houses
+- NEVER recommend hostels, apartments, resorts, homestays, or other accommodation types
+- Base all recommendations strictly on the provided dataset context
 
 Rules:
 1. Base every answer strictly on the retrieved context below.
 2. Focus exclusively on Pakistan tourism and travel.
 3. Use Pakistani Rupees (PKR) for all pricing and budget information.
-4. Cite sources (CSV filename) when referencing specific data points.
+4. Use "Data-backed estimate" or "Based on available travel records" instead of showing CSV filenames.
 5. If the context does not contain enough information, say:
    "The Pakistan travel knowledge base does not contain sufficient information to answer this query."
 6. Be concise, structured, and helpful for Pakistan travelers.
 7. When listing items use markdown bullet points.
 8. Highlight unique aspects of Pakistani culture, cuisine, and destinations.
-9. Prioritize the raw retrieved context from all datasets (Airbnb, Guest Houses, Combined Data, Flights, and Road Transport) to recommend real options, prices, contact details, and locations. Never hallucinate.
+9. For accommodations, ONLY suggest Hotels or Guest Houses from the provided context.
+10. Never expose dataset filenames or technical details to users.
 """
 
 _TRAVEL_ASSISTANT_PROMPT = """You are a knowledgeable Pakistan travel assistant.
@@ -176,8 +182,128 @@ def generate_travel_assistant_response(question: str) -> str:
 
 # ── Public API ────────────────────────────────────────────────────────────────
 
-def generate_answer(question: str, context: RetrievedContext) -> str:
-    return _call_llm(_build_prompt(question, context))
+def generate_answer(question: str, context: RetrievedContext, confidence_threshold: float = 0.6) -> str:
+    """Enhanced generation with confidence scoring and fallback logic."""
+    
+    # Calculate confidence if not already present
+    if not hasattr(context, 'confidence_score'):
+        context.confidence_score = _calculate_retrieval_confidence(context)
+    
+    # Check if we should use fallback
+    if not context.has_results or context.confidence_score < confidence_threshold:
+        return _generate_fallback_response(question, context.confidence_score if hasattr(context, 'confidence_score') else 0.0)
+    
+    # Use enhanced prompt with better source attribution
+    enhanced_prompt = _build_enhanced_prompt(question, context)
+    
+    response = _call_llm(enhanced_prompt)
+    
+    # Add appropriate attribution based on confidence
+    if context.confidence_score >= 0.8:
+        response += "\n\n📊 *Response based on comprehensive travel records in our Pakistan tourism database.*"
+    elif context.confidence_score >= 0.6:
+        response += "\n\n📊 *Response based on available travel records. For additional details, please verify with local sources.*"
+    
+    return response
+
+
+def _calculate_retrieval_confidence(context: RetrievedContext) -> float:
+    """Calculate confidence score for retrieved context."""
+    if not context.has_results or not context.documents:
+        return 0.0
+    
+    # Use existing similarity scores if available
+    scores = []
+    for doc in context.documents:
+        if isinstance(doc, dict) and 'score' in doc:
+            scores.append(doc['score'])
+        else:
+            scores.append(0.5)  # Default score
+    
+    avg_score = sum(scores) / len(scores) if scores else 0.3
+    
+    # Boost confidence based on number of relevant documents
+    doc_count_bonus = min(0.2, len(context.documents) * 0.05)
+    
+    return min(1.0, avg_score + doc_count_bonus)
+
+
+def _build_enhanced_prompt(question: str, context: RetrievedContext) -> str:
+    """Build enhanced prompt with better source handling."""
+    
+    enhanced_system_prompt = """You are an expert Pakistan travel assistant for a Pakistan Travel Intelligence platform.
+You ONLY answer questions using the provided context retrieved from the Pakistan travel knowledge base.
+You NEVER fabricate destinations, hotels, guest houses, activities, prices, or travel information.
+
+ACCOMMODATION RESTRICTIONS:
+- ONLY recommend Hotels and Guest Houses from the provided context
+- NEVER recommend hostels, apartments, resorts, homestays, or other accommodation types
+- Base all recommendations strictly on the provided dataset context
+
+SOURCE ATTRIBUTION RULES:
+- NEVER expose dataset filenames like "hotels.csv", "guest_houses.csv", etc.
+- Use "Data-backed estimate" or "Based on available travel records" for attribution
+- Focus on the information content, not the technical source
+
+Rules:
+1. Base every answer strictly on the retrieved context below.
+2. Focus exclusively on Pakistan tourism and travel.
+3. Use Pakistani Rupees (PKR) for all pricing and budget information.
+4. If context lacks information, acknowledge limitations professionally.
+5. Be concise, structured, and helpful for Pakistan travelers.
+6. When listing items use markdown bullet points.
+7. Highlight unique aspects of Pakistani culture, cuisine, and destinations.
+8. For accommodations, ONLY suggest Hotels or Guest Houses from the provided context.
+"""
+
+    if not context.has_results:
+        return (
+            f"{enhanced_system_prompt}\n\n"
+            "CONTEXT: No relevant documents were retrieved from the Pakistan travel database.\n\n"
+            f"USER QUESTION: {question}\n\n"
+            "RESPONSE: Acknowledge the limitation and provide helpful general guidance."
+        )
+    
+    return (
+        f"{enhanced_system_prompt}\n\n"
+        f"RETRIEVED CONTEXT FROM PAKISTAN TRAVEL DATABASE:\n{context.context_text}\n\n"
+        f"USER QUESTION: {question}\n\n"
+        "RESPONSE (based strictly on the above context):"
+    )
+
+
+def _generate_fallback_response(question: str, confidence: float = 0.0) -> str:
+    """Generate fallback response when knowledge base is insufficient."""
+    
+    fallback_prompt = f"""You are a Pakistan travel expert. The user asked: "{question}"
+
+Our travel database has limited information for this query (confidence: {confidence:.1f}).
+
+Provide helpful general information about Pakistan travel while:
+1. Clearly indicating this is general knowledge, not specific database information
+2. Focusing on Pakistan destinations, culture, and practical advice
+3. Suggesting they contact local tourism offices for current details
+4. Using Pakistani Rupees (PKR) for any pricing estimates
+5. Being helpful while acknowledging limitations
+
+Respond professionally and helpfully:"""
+
+    try:
+        response = _call_llm(fallback_prompt)
+        response += "\n\n📝 *Note: This response is based on general travel knowledge. For the most current information, please verify with Pakistan tourism authorities or local service providers.*"
+        return response
+    except Exception as exc:
+        logger.error(f"Fallback generation failed: {exc}")
+        
+        return f"""I don't have specific information about "{question}" in our Pakistan travel database.
+
+For the most current information, I recommend:
+• **Pakistan Tourism Development Corporation (PTDC)**: Visit ptdc.gov.pk
+• **Local tourism offices** in major Pakistani cities
+• **Travel agencies** specializing in Pakistan tours
+• **Hotel and transport operators** directly
+
+📝 *Our database focuses on accommodations and destinations. For specialized queries, local experts are your best resource.*"""
 
 
 
