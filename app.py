@@ -23,11 +23,15 @@ sys.path.insert(0, str(ROOT))
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
-    handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler(str(ROOT / "logs" / "travel_rag.log"), mode="a"),
-    ],
+    handlers=[logging.StreamHandler()],
 )
+# Add file handler only if the logs directory is writable (local dev)
+try:
+    _log_path = ROOT / "logs" / "travel_rag.log"
+    _log_path.parent.mkdir(parents=True, exist_ok=True)
+    logging.getLogger().addHandler(logging.FileHandler(str(_log_path), mode="a"))
+except OSError:
+    pass  # Skip file logging on read-only cloud filesystems
 logger = logging.getLogger(__name__)
 
 # ── Streamlit page config — MUST be first Streamlit call ─────────────────────
@@ -1794,48 +1798,45 @@ def page_flights() -> None:
             st.markdown("### ✈️ Live Flights")
             for f in flights:
                 delay_dep = f.get("delay_departure_min")
-                delay_str = ""
+                delay_html = ""
                 if delay_dep and isinstance(delay_dep, (int, float)) and delay_dep > 0:
-                    delay_str = f'<span style="color:#ff5722; font-size:0.75rem; font-weight:600;">⚠️ +{int(delay_dep)}min delay</span>'
-                st.markdown(
-                    f"""
-                    <div class="glass-card" style="margin-bottom:0.9rem;">
-                        <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:0.5rem;">
-                            <div>
-                                <span style="font-size:1.2rem; font-weight:700; color:#fff;">{f['flight_number']}</span>
-                                <span style="font-size:0.85rem; color:#ffa726; margin-left:0.6rem;">{f['airline_name']}</span>
-                                {delay_str}
-                            </div>
-                            <span style="background:rgba(0,0,0,0.3); border:1px solid {f['status_color']};
-                                         color:{f['status_color']}; border-radius:20px;
-                                         padding:0.2rem 0.8rem; font-size:0.78rem; font-weight:600;">
-                                {f['status']}
-                            </span>
-                        </div>
-                        <div style="display:grid; grid-template-columns:1fr auto 1fr; gap:1rem; margin-top:1rem; align-items:center;">
-                            <div>
-                                <div style="font-size:1.4rem; font-weight:700; color:#ff6f00;">{f['departure_iata']}</div>
-                                <div style="font-size:0.8rem; color:#cbd5e1;">{f['departure_airport'][:30]}</div>
-                                <div style="font-size:0.75rem; color:#9ca3af; margin-top:0.2rem;">🕐 {f['departure_time']}</div>
-                                <div style="font-size:0.72rem; color:#9ca3af;">Terminal: {f['departure_terminal']} | Gate: {f['departure_gate']}</div>
-                            </div>
-                            <div style="text-align:center; color:#ff5722; font-size:1.4rem;">→</div>
-                            <div style="text-align:right;">
-                                <div style="font-size:1.4rem; font-weight:700; color:#ff6f00;">{f['arrival_iata']}</div>
-                                <div style="font-size:0.8rem; color:#cbd5e1;">{f['arrival_airport'][:30]}</div>
-                                <div style="font-size:0.75rem; color:#9ca3af; margin-top:0.2rem;">🕐 {f['arrival_time']}</div>
-                                <div style="font-size:0.72rem; color:#9ca3af;">Terminal: {f['arrival_terminal']} | Gate: {f['arrival_gate']}</div>
-                            </div>
-                        </div>
-                        <div style="display:flex; gap:1rem; margin-top:0.8rem; flex-wrap:wrap; font-size:0.8rem; color:#9ca3af;
-                                    border-top:1px solid rgba(255,255,255,0.05); padding-top:0.6rem;">
-                            <span>✈️ Aircraft: <strong style="color:#cbd5e1;">{f['aircraft_type']}</strong></span>
-                            <span>🪪 Reg: <strong style="color:#cbd5e1;">{f['aircraft_registration']}</strong></span>
-                        </div>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
+                    delay_html = f'<span style="color:#ff5722;font-size:0.75rem;font-weight:600;">⚠️ +{int(delay_dep)}min delay</span>'
+                # Use local AIRPORTS dict for accurate names
+                dep_ap_name = AIRPORTS.get(dep_city, {}).get('name') or f.get('departure_airport') or dep_city
+                arr_ap_name = AIRPORTS.get(arr_city, {}).get('name') or f.get('arrival_airport') or arr_city
+                sc = f['status_color']
+                card = (
+                    '<div class="glass-card" style="margin-bottom:0.9rem;">'
+                    '<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:0.5rem;">'
+                    '<div>'
+                    f'<span style="font-size:1.2rem;font-weight:700;color:#fff;">{f["flight_number"]}</span>'
+                    f'<span style="font-size:0.85rem;color:#ffa726;margin-left:0.6rem;">{f["airline_name"]}</span>'
+                    f'{delay_html}'
+                    '</div>'
+                    f'<span style="background:rgba(0,0,0,0.3);border:1px solid {sc};color:{sc};border-radius:20px;padding:0.2rem 0.8rem;font-size:0.78rem;font-weight:600;">{f["status"]}</span>'
+                    '</div>'
+                    '<div style="display:grid;grid-template-columns:1fr auto 1fr;gap:1rem;margin-top:1rem;align-items:center;">'
+                    '<div>'
+                    f'<div style="font-size:1.4rem;font-weight:700;color:#ff6f00;">{f["departure_iata"]}</div>'
+                    f'<div style="font-size:0.8rem;color:#cbd5e1;">{dep_ap_name[:38]}</div>'
+                    f'<div style="font-size:0.75rem;color:#9ca3af;margin-top:0.2rem;">🕐 {f["departure_time"]}</div>'
+                    f'<div style="font-size:0.72rem;color:#9ca3af;">Terminal: {f["departure_terminal"]} | Gate: {f["departure_gate"]}</div>'
+                    '</div>'
+                    '<div style="text-align:center;font-size:1.5rem;">✈️</div>'
+                    '<div style="text-align:right;">'
+                    f'<div style="font-size:1.4rem;font-weight:700;color:#ff6f00;">{f["arrival_iata"]}</div>'
+                    f'<div style="font-size:0.8rem;color:#cbd5e1;">{arr_ap_name[:38]}</div>'
+                    f'<div style="font-size:0.75rem;color:#9ca3af;margin-top:0.2rem;">🕐 {f["arrival_time"]}</div>'
+                    f'<div style="font-size:0.72rem;color:#9ca3af;">Terminal: {f["arrival_terminal"]} | Gate: {f["arrival_gate"]}</div>'
+                    '</div>'
+                    '</div>'
+                    '<div style="display:flex;gap:1rem;margin-top:0.8rem;flex-wrap:wrap;font-size:0.8rem;color:#9ca3af;border-top:1px solid rgba(255,255,255,0.05);padding-top:0.6rem;">'
+                    f'<span>✈️ Aircraft: <strong style="color:#cbd5e1;">{f["aircraft_type"]}</strong></span>'
+                    f'<span>🪪 Reg: <strong style="color:#cbd5e1;">{f["aircraft_registration"]}</strong></span>'
+                    '</div>'
+                    '</div>'
                 )
+                st.markdown(card, unsafe_allow_html=True)
 
         elif source == "openai_fallback" and result.get("ai_insight"):
             ai = result["ai_insight"]

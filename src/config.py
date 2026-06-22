@@ -1,18 +1,28 @@
 """
 Configuration module for the Pakistan Travel Intelligence RAG System.
-All settings are loaded from environment variables with sensible defaults.
+All settings are loaded from Streamlit Secrets (cloud) or environment variables (local).
 """
 
 import os
 from pathlib import Path
 
-# Temporary workaround - load environment variables directly
-# In production, use: pip install python-dotenv
+# Load .env for local development
 try:
     from dotenv import load_dotenv
     load_dotenv()
 except ImportError:
-    # Manually set environment variables if dotenv is not available
+    pass
+
+# ── Streamlit Secrets Support (Streamlit Cloud deployment) ──────────────────
+# When running on Streamlit Cloud, secrets are in st.secrets.
+# We inject them into os.environ so the rest of the code works unchanged.
+try:
+    import streamlit as st
+    if hasattr(st, 'secrets') and len(st.secrets) > 0:
+        for _key, _val in st.secrets.items():
+            if isinstance(_val, str):
+                os.environ.setdefault(_key, _val)
+except Exception:
     pass
 
 # ─── Paths ──────────────────────────────────────────────────────────────────
@@ -23,7 +33,10 @@ CACHE_DIR = BASE_DIR / "cache"
 LOGS_DIR = BASE_DIR / "logs"
 
 for _dir in [VECTOR_DB_DIR, CACHE_DIR, LOGS_DIR]:
-    _dir.mkdir(parents=True, exist_ok=True)
+    try:
+        _dir.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        pass  # Read-only filesystem on cloud platforms
 
 # ─── Pakistan Travel Settings ───────────────────────────────────────────────
 COUNTRY_FOCUS = "Pakistan"
