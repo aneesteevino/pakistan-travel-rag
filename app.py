@@ -724,6 +724,7 @@ from src.flights import (
     AIRPORTS, AIRLINES, BOOKING_PLATFORMS,
     get_all_airports, get_domestic_cities,
     search_flights, get_all_domestic_routes,
+    fetch_real_time_flights, get_city_iata,
 )
 
 
@@ -1714,9 +1715,9 @@ def page_flights() -> None:
     st.markdown(
         """
         <div class="hero-container">
-            <p class="hero-title">✈️ Domestic Flight Search</p>
+            <p class="hero-title">✈️ Real-Time Flight Search</p>
             <p class="hero-subtitle">
-                Search real domestic flights within Pakistan, compare prices, check on-time status, and view airport details.
+                Live flight data powered by AviationStack API — check real-time status, compare airlines, view schedules.
             </p>
         </div>
         """,
@@ -1724,142 +1725,264 @@ def page_flights() -> None:
     )
 
     cities = get_all_airports()
-    col1, col2 = st.columns(2)
+    col1, col2, col3 = st.columns([2, 2, 1])
     with col1:
-        dep_city = st.selectbox("Departure Airport City", cities, index=cities.index("Karachi") if "Karachi" in cities else 0)
+        dep_city = st.selectbox(
+            "🛫 Departure City", cities,
+            index=cities.index("Karachi") if "Karachi" in cities else 0,
+            key="flight_dep"
+        )
     with col2:
-        arr_city = st.selectbox("Arrival Airport City", [c for c in cities if c != dep_city], index=cities.index("Lahore") if "Lahore" in cities and dep_city != "Lahore" else 0)
+        arr_cities = [c for c in cities if c != dep_city]
+        arr_city = st.selectbox(
+            "🛬 Arrival City", arr_cities,
+            index=arr_cities.index("Lahore") if "Lahore" in arr_cities else 0,
+            key="flight_arr"
+        )
+    with col3:
+        cabin_class = st.selectbox("💺 Class", ["Economy", "Business"], key="flight_class")
 
-    cabin_class = st.selectbox("Cabin Class", ["Economy Class", "Business Class"])
+    dep_iata = get_city_iata(dep_city)
+    arr_iata = get_city_iata(arr_city)
+    dep_ap = AIRPORTS.get(dep_city, {})
+    arr_ap = AIRPORTS.get(arr_city, {})
+    dep_name = dep_ap.get('name', dep_city)
+    arr_name = arr_ap.get('name', arr_city)
 
-    if st.button("🔍 Search Flights", use_container_width=True):
-        with st.spinner("Searching domestic routes..."):
-            res = search_flights(dep_city, arr_city)
-            
-        if res.get("found"):
+    st.markdown(
+        f"""
+        <div style="display:flex; gap:1rem; margin-bottom:1rem; flex-wrap:wrap;">
+            <div style="background:rgba(255,87,34,0.08); border:1px solid rgba(255,87,34,0.2); border-radius:10px; padding:0.5rem 1.2rem;">
+                <span style="font-size:0.72rem; color:#9ca3af; text-transform:uppercase;">Departure</span>
+                <div style="font-size:1.3rem; font-weight:700; color:#ff6f00;">{dep_iata}</div>
+                <div style="font-size:0.78rem; color:#cbd5e1;">{dep_name}</div>
+            </div>
+            <div style="display:flex; align-items:center; font-size:1.8rem; color:#ff5722; padding:0 0.5rem;">✈️</div>
+            <div style="background:rgba(255,87,34,0.08); border:1px solid rgba(255,87,34,0.2); border-radius:10px; padding:0.5rem 1.2rem;">
+                <span style="font-size:0.72rem; color:#9ca3af; text-transform:uppercase;">Arrival</span>
+                <div style="font-size:1.3rem; font-weight:700; color:#ff6f00;">{arr_iata}</div>
+                <div style="font-size:0.78rem; color:#cbd5e1;">{arr_name}</div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    if st.button("🔍 Search Real-Time Flights", use_container_width=True, key="flight_search_btn"):
+        with st.spinner("🛰️ Fetching live flight data from AviationStack..."):
+            result = fetch_real_time_flights(dep_iata, arr_iata, limit=20)
+
+        source = result.get("source", "error")
+
+        if source == "aviationstack" and result.get("flights"):
+            flights = result["flights"]
+            total = result.get("total_found", len(flights))
+            st.markdown(
+                f"""
+                <div style="display:flex; align-items:center; gap:0.8rem; margin-bottom:1.2rem;">
+                    <span style="background:#1b5e20; border:1px solid #4caf50; color:#81c784;
+                                 border-radius:20px; padding:0.3rem 0.8rem; font-size:0.78rem; font-weight:600;">
+                        🟢 LIVE DATA — AviationStack
+                    </span>
+                    <span style="color:#9ca3af; font-size:0.82rem;">
+                        {total} flight(s) found for {dep_iata} → {arr_iata}
+                    </span>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+            st.markdown("### ✈️ Live Flights")
+            for f in flights:
+                delay_dep = f.get("delay_departure_min")
+                delay_str = ""
+                if delay_dep and isinstance(delay_dep, (int, float)) and delay_dep > 0:
+                    delay_str = f'<span style="color:#ff5722; font-size:0.75rem; font-weight:600;">⚠️ +{int(delay_dep)}min delay</span>'
+                st.markdown(
+                    f"""
+                    <div class="glass-card" style="margin-bottom:0.9rem;">
+                        <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:0.5rem;">
+                            <div>
+                                <span style="font-size:1.2rem; font-weight:700; color:#fff;">{f['flight_number']}</span>
+                                <span style="font-size:0.85rem; color:#ffa726; margin-left:0.6rem;">{f['airline_name']}</span>
+                                {delay_str}
+                            </div>
+                            <span style="background:rgba(0,0,0,0.3); border:1px solid {f['status_color']};
+                                         color:{f['status_color']}; border-radius:20px;
+                                         padding:0.2rem 0.8rem; font-size:0.78rem; font-weight:600;">
+                                {f['status']}
+                            </span>
+                        </div>
+                        <div style="display:grid; grid-template-columns:1fr auto 1fr; gap:1rem; margin-top:1rem; align-items:center;">
+                            <div>
+                                <div style="font-size:1.4rem; font-weight:700; color:#ff6f00;">{f['departure_iata']}</div>
+                                <div style="font-size:0.8rem; color:#cbd5e1;">{f['departure_airport'][:30]}</div>
+                                <div style="font-size:0.75rem; color:#9ca3af; margin-top:0.2rem;">🕐 {f['departure_time']}</div>
+                                <div style="font-size:0.72rem; color:#9ca3af;">Terminal: {f['departure_terminal']} | Gate: {f['departure_gate']}</div>
+                            </div>
+                            <div style="text-align:center; color:#ff5722; font-size:1.4rem;">→</div>
+                            <div style="text-align:right;">
+                                <div style="font-size:1.4rem; font-weight:700; color:#ff6f00;">{f['arrival_iata']}</div>
+                                <div style="font-size:0.8rem; color:#cbd5e1;">{f['arrival_airport'][:30]}</div>
+                                <div style="font-size:0.75rem; color:#9ca3af; margin-top:0.2rem;">🕐 {f['arrival_time']}</div>
+                                <div style="font-size:0.72rem; color:#9ca3af;">Terminal: {f['arrival_terminal']} | Gate: {f['arrival_gate']}</div>
+                            </div>
+                        </div>
+                        <div style="display:flex; gap:1rem; margin-top:0.8rem; flex-wrap:wrap; font-size:0.8rem; color:#9ca3af;
+                                    border-top:1px solid rgba(255,255,255,0.05); padding-top:0.6rem;">
+                            <span>✈️ Aircraft: <strong style="color:#cbd5e1;">{f['aircraft_type']}</strong></span>
+                            <span>🪪 Reg: <strong style="color:#cbd5e1;">{f['aircraft_registration']}</strong></span>
+                        </div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+
+        elif source == "openai_fallback" and result.get("ai_insight"):
+            ai = result["ai_insight"]
+            st.markdown(
+                """
+                <div style="display:flex; align-items:center; gap:0.8rem; margin-bottom:1.2rem;">
+                    <span style="background:rgba(255,111,0,0.15); border:1px solid rgba(255,111,0,0.4);
+                                 color:#ffa726; border-radius:20px; padding:0.3rem 0.8rem;
+                                 font-size:0.78rem; font-weight:600;">
+                        🤖 AI-GENERATED INSIGHTS — Live API unavailable
+                    </span>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+            airlines_str = ", ".join(ai.get("airlines", ["PIA", "AirSial"]))
             st.markdown(
                 f"""
                 <div class="glass-card-accent">
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
-                        <span style="font-size:1.8rem; font-weight:700; color:#fff;">
-                            {res['departure']} ({res['departure_code']}) ✈️ {res['arrival']} ({res['arrival_code']})
-                        </span>
-                        <span class="source-badge">PIA Domestic Route</span>
+                    <div style="font-size:1rem; font-weight:600; color:#fff; margin-bottom:1rem;">
+                        ✈️ Route: {dep_city} ({dep_iata}) → {arr_city} ({arr_iata})
                     </div>
-                    
-                    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:1.2rem; margin-top:1.5rem;">
-                        <div class="glass-card" style="text-align:center; padding:1.2rem; margin-bottom:0;">
-                            <div style="font-size:0.8rem; color:#9ca3af; text-transform:uppercase;">Average Ticket Price</div>
-                            <div style="font-size:1.8rem; font-weight:700; color:#ffa726; margin-top:0.4rem;">
-                                ${res['avg_price_usd']:.0f} USD
-                            </div>
-                            <div style="font-size:0.9rem; color:#81c784; margin-top:0.2rem;">
-                                ≈ {CURRENCY_SYMBOL} {int(res['avg_price_usd'] * 280):,} PKR
-                            </div>
+                    <div style="font-size:0.88rem; color:#cbd5e1; margin-bottom:0.5rem;">
+                        📝 {ai.get('route_summary', '')}
+                    </div>
+                    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:0.8rem; margin-top:1rem;">
+                        <div style="background:rgba(255,255,255,0.04); border-radius:10px; padding:0.8rem;">
+                            <div style="font-size:0.7rem; color:#9ca3af; text-transform:uppercase;">Airlines</div>
+                            <div style="color:#ffa726; font-weight:600; margin-top:0.3rem;">{airlines_str}</div>
                         </div>
-                        <div class="glass-card" style="text-align:center; padding:1.2rem; margin-bottom:0;">
-                            <div style="font-size:0.8rem; color:#9ca3af; text-transform:uppercase;">Price Range</div>
-                            <div style="font-size:1.5rem; font-weight:700; color:#fff; margin-top:0.6rem;">
-                                ${res['min_price_usd']:.0f} - ${res['max_price_usd']:.0f}
-                            </div>
-                            <div style="font-size:0.9rem; color:#9ca3af; margin-top:0.2rem;">
-                                USD per ticket
-                            </div>
+                        <div style="background:rgba(255,255,255,0.04); border-radius:10px; padding:0.8rem;">
+                            <div style="font-size:0.7rem; color:#9ca3af; text-transform:uppercase;">Frequency</div>
+                            <div style="color:#fff; font-weight:600; margin-top:0.3rem;">{ai.get('frequency', 'Daily')}</div>
                         </div>
-                        <div class="glass-card" style="text-align:center; padding:1.2rem; margin-bottom:0;">
-                            <div style="font-size:0.8rem; color:#9ca3af; text-transform:uppercase;">Average Duration</div>
-                            <div style="font-size:1.8rem; font-weight:700; color:#fff; margin-top:0.4rem;">
-                                {int(res['avg_duration_min'])} mins
-                            </div>
-                            <div style="font-size:0.9rem; color:#9ca3af; margin-top:0.2rem;">
-                                {int(res['avg_duration_min'] // 60)}h {int(res['avg_duration_min'] % 60)}m
-                            </div>
+                        <div style="background:rgba(255,255,255,0.04); border-radius:10px; padding:0.8rem;">
+                            <div style="font-size:0.7rem; color:#9ca3af; text-transform:uppercase;">Duration</div>
+                            <div style="color:#fff; font-weight:600; margin-top:0.3rem;">{ai.get('duration', '~1-2 hrs')}</div>
                         </div>
-                        <div class="glass-card" style="text-align:center; padding:1.2rem; margin-bottom:0;">
-                            <div style="font-size:0.8rem; color:#9ca3af; text-transform:uppercase;">On-Time Performance</div>
-                            <div style="font-size:1.8rem; font-weight:700; color:#81c784; margin-top:0.4rem;">
-                                {res['on_time_pct']}%
-                            </div>
-                            <div style="font-size:0.9rem; color:#9ca3af; margin-top:0.2rem;">
-                                {res['sample_count']} flights sampled
-                            </div>
+                        <div style="background:rgba(255,255,255,0.04); border-radius:10px; padding:0.8rem;">
+                            <div style="font-size:0.7rem; color:#9ca3af; text-transform:uppercase;">Price Range</div>
+                            <div style="color:#81c784; font-weight:600; margin-top:0.3rem;">{ai.get('price_range_pkr', 'Contact airline')}</div>
                         </div>
                     </div>
-                    
-                    <div style="margin-top:1.5rem;">
-                        <span style="color:#9ca3af; font-size:0.9rem; font-weight:600;">Aircraft Types Operated:</span>
-                        {" ".join([f'<span class="stat-chip">{ac}</span>' for ac in res['aircraft_types']])}
+                    <div style="margin-top:1rem; font-size:0.8rem; color:#9ca3af; padding:0.6rem;
+                                background:rgba(255,87,34,0.06); border-radius:8px; border-left:3px solid rgba(255,87,34,0.4);">
+                        💡 Best time to book: {ai.get('best_booking_time', '2-4 weeks in advance')}
+                    </div>
+                    <div style="margin-top:0.5rem; font-size:0.75rem; color:#9ca3af; font-style:italic;">
+                        ⚠️ {ai.get('disclaimer', 'AI-generated. Verify with airlines.')}
                     </div>
                 </div>
                 """,
                 unsafe_allow_html=True,
             )
         else:
-            st.info("✈️ Flight schedules are updated regularly. Please check with PIA directly for current availability.")
+            st.warning(
+                f"⚠️ Could not retrieve flight data: {result.get('error', 'Unknown error')}. "
+                "Please check airline websites directly."
+            )
 
-        # Show airport information details
+        # ── Supplementary PIA Historical Stats ────────────────────────────────
         st.markdown("---")
-        st.markdown("### 🏢 Airport Information Details")
-        
-        st.markdown(
-            """
-            <div class="glass-card" style="max-width: 500px; margin: 0 auto;">
-                <div style="font-size:1.2rem; font-weight:700; color:#ff6f00; margin-bottom:0.5rem;">
-                    Jinnah International Airport (KHI)
-                </div>
-                <div style="font-size:0.9rem; color:#cbd5e1; margin-bottom:0.2rem;">
-                    📍 Sindh
-                </div>
-                <div style="font-size:0.9rem; color:#cbd5e1; margin-bottom:0.8rem;">
-                    🌐 <b>Official Website:</b> <a href="https://www.pakistanairports.com.pk" target="_blank" style="color:#ffa726;">PAA Portal</a>
-                </div>
-                <a href="https://www.pakistanairports.com.pk" target="_blank">
-                    <button style="background:rgba(255,87,34,0.1); border:1px solid rgba(255,87,34,0.3); 
-                                   color:#ffa726; border-radius:8px; padding:0.4rem 1rem; cursor:pointer;">
-                        📅 View Real-Time Schedules
-                    </button>
-                </a>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+        st.markdown("### 📊 Historical Route Statistics (PIA Dataset)")
+        hist_res = search_flights(dep_city, arr_city)
+        if hist_res.get("found"):
+            c1, c2, c3, c4 = st.columns(4)
+            for col, icon, label, val in [
+                (c1, "💰", "Avg Price", f"${hist_res['avg_price_usd']:.0f} USD"),
+                (c2, "📉", "Min Price", f"${hist_res['min_price_usd']:.0f} USD"),
+                (c3, "⏱️", "Avg Duration", f"{int(hist_res['avg_duration_min'])} min"),
+                (c4, "✅", "On-Time %", f"{hist_res['on_time_pct']}%"),
+            ]:
+                with col:
+                    st.markdown(
+                        f"""<div class="glass-card" style="text-align:center; padding:1rem;">
+                            <div style="font-size:1.4rem;">{icon}</div>
+                            <div style="font-size:1.2rem; font-weight:700; color:#ff6f00;">{val}</div>
+                            <div style="font-size:0.75rem; color:#9ca3af;">{label}</div>
+                            <div style="font-size:0.7rem; color:#4a5568; margin-top:0.2rem;">from {hist_res['sample_count']} PIA records</div>
+                        </div>""",
+                        unsafe_allow_html=True,
+                    )
+            if hist_res.get("aircraft_types"):
+                st.markdown(
+                    "**Aircraft Types:** " + " ".join(f'<span class="stat-chip">{ac}</span>' for ac in hist_res["aircraft_types"]),
+                    unsafe_allow_html=True,
+                )
+        else:
+            st.info("No historical PIA data for this specific route.")
 
-        # Booking Links
+        # ── Airport Info ──────────────────────────────────────────────────────
         st.markdown("---")
-        st.markdown("### 🎫 Partner Airlines & Booking Platforms")
-        
-        c_airline, c_booking = st.columns(2)
-        with c_airline:
-            st.markdown("#### ✈️ Domestic Airlines")
-            for al in AIRLINES:
+        st.markdown("### 🏢 Airport Information")
+        col_dep_info, col_arr_info = st.columns(2)
+        for col, city_name in [(col_dep_info, dep_city), (col_arr_info, arr_city)]:
+            with col:
+                ap = AIRPORTS.get(city_name, {})
                 st.markdown(
                     f"""
-                    <div style="display:flex; justify-content:space-between; align-items:center; 
-                                background:rgba(255,255,255,0.02); padding:0.8rem 1.2rem; 
-                                border-radius:10px; margin-bottom:0.5rem; border:1px solid rgba(255,255,255,0.05);">
-                        <div>
-                            <span style="font-size:1.1rem; margin-right:0.5rem;">{al['icon']}</span>
-                            <span style="font-weight:600; color:#fff;">{al['name']}</span>
-                            <div style="font-size:0.75rem; color:#9ca3af;">Routes: {al['routes']}</div>
+                    <div class="glass-card">
+                        <div style="font-size:1.1rem; font-weight:700; color:#ff6f00;">{ap.get('name', city_name)}</div>
+                        <div style="font-size:0.85rem; color:#ffa726; margin-top:0.3rem;">
+                            🛬 IATA: <strong>{ap.get('code', '???')}</strong> | 📍 {ap.get('province', '')}
                         </div>
-                        <a href="{al['url']}" target="_blank">
-                            <button style="background:#ff5722; border:none; color:white; border-radius:6px; 
-                                           padding:0.3rem 0.8rem; font-size:0.8rem; cursor:pointer;">
-                                Book Now ↗
-                            </button>
+                        <a href="{ap.get('schedule_url', 'https://paa.gov.pk')}" target="_blank"
+                           style="display:inline-block; margin-top:0.8rem; background:rgba(255,87,34,0.1);
+                                  border:1px solid rgba(255,87,34,0.3); color:#ffa726;
+                                  border-radius:8px; padding:0.3rem 0.8rem; font-size:0.8rem; text-decoration:none;">
+                            📅 Live Schedule ↗
                         </a>
                     </div>
                     """,
                     unsafe_allow_html=True,
                 )
-                
+
+        # ── Booking Links ─────────────────────────────────────────────────────
+        st.markdown("---")
+        st.markdown("### 🎫 Book Your Flight")
+        c_airline, c_booking = st.columns(2)
+        with c_airline:
+            st.markdown("#### ✈️ Airlines")
+            for al in AIRLINES:
+                st.markdown(
+                    f"""
+                    <div style="display:flex; justify-content:space-between; align-items:center;
+                                background:rgba(255,255,255,0.02); padding:0.8rem 1.2rem;
+                                border-radius:10px; margin-bottom:0.5rem; border:1px solid rgba(255,255,255,0.05);">
+                        <div>
+                            <span style="font-size:1.1rem; margin-right:0.5rem;">{al['icon']}</span>
+                            <span style="font-weight:600; color:#fff;">{al['name']}</span>
+                            <div style="font-size:0.75rem; color:#9ca3af;">{al['routes']}</div>
+                        </div>
+                        <a href="{al['url']}" target="_blank">
+                            <button style="background:#ff5722; border:none; color:white; border-radius:6px;
+                                           padding:0.3rem 0.8rem; font-size:0.8rem; cursor:pointer;">Book ↗</button>
+                        </a>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
         with c_booking:
-            st.markdown("#### 🌐 Booking Platforms")
+            st.markdown("#### 🌐 Compare Platforms")
             for bp in BOOKING_PLATFORMS:
                 st.markdown(
                     f"""
-                    <div style="display:flex; justify-content:space-between; align-items:center; 
-                                background:rgba(255,255,255,0.02); padding:0.8rem 1.2rem; 
+                    <div style="display:flex; justify-content:space-between; align-items:center;
+                                background:rgba(255,255,255,0.02); padding:0.8rem 1.2rem;
                                 border-radius:10px; margin-bottom:0.5rem; border:1px solid rgba(255,255,255,0.05);">
                         <div>
                             <span style="font-size:1.1rem; margin-right:0.5rem;">{bp['icon']}</span>
@@ -1867,27 +1990,24 @@ def page_flights() -> None:
                             <div style="font-size:0.75rem; color:#9ca3af;">{bp['desc']}</div>
                         </div>
                         <a href="{bp['url']}" target="_blank">
-                            <button style="background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.1); 
-                                           color:#fff; border-radius:6px; padding:0.3rem 0.8rem; font-size:0.8rem; cursor:pointer;">
-                                Compare ↗
-                            </button>
+                            <button style="background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.1);
+                                           color:#fff; border-radius:6px; padding:0.3rem 0.8rem; font-size:0.8rem; cursor:pointer;">Compare ↗</button>
                         </a>
                     </div>
                     """,
                     unsafe_allow_html=True,
                 )
 
-        # Show all unique domestic routes in database
         st.markdown("---")
-        with st.expander("📊 View All Domestic Routes in Dataset", expanded=False):
+        with st.expander("📊 All Domestic Routes in PIA Dataset", expanded=False):
             routes = get_all_domestic_routes()
             if routes:
                 route_df = pd.DataFrame(routes)
-                route_df.columns = ["Departure", "Arrival", "Dep Code", "Arr Code", "Avg Price (USD)", "Min Price (USD)", "Avg Duration (min)", "Sample Flights"]
+                route_df.columns = ["Departure", "Arrival", "Dep Code", "Arr Code",
+                                    "Avg Price (USD)", "Min Price (USD)", "Avg Duration (min)", "Sample Flights"]
                 st.dataframe(route_df, use_container_width=True, hide_index=True)
             else:
-                st.info("No domestic routes found in flight dataset.")
-
+                st.info("No domestic routes found in dataset.")
 
 def page_comparison() -> None:
     st.markdown(
@@ -3059,63 +3179,309 @@ def page_trip_planner() -> None:
         else:
             st.markdown("🎯 **Explore amazing activities and experiences that await you during your trip.**")
 
-        # Enhanced download with detailed formatting
-        def create_detailed_trip_plan():
-            detailed_plan = f"""
-🌟 PAKISTAN TRAVEL ITINERARY 🌟
-═══════════════════════════════════════════════════════════════════
+        # ── PDF Download ──────────────────────────────────────────────────────
+        def create_trip_pdf_bytes():
+            """Generate a well-formatted PDF trip plan using fpdf2."""
+            try:
+                from fpdf import FPDF, XPos, YPos
+                import textwrap
 
-✈️ Trip Overview
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🏛️  Destination: {wz.wz_destination}, Pakistan
-📅  Duration: {wz.wz_duration} Days
-👥  Group: {wz.wz_group_type} ({wz.wz_num_travelers} travelers)
-🎨  Travel Style: {wz.wz_travel_style}
-🏨  Accommodation: {wz.wz_accom_type} - {wz.wz_room_type}
-🚗  Transport: {wz.wz_transport_type} ({wz.wz_transport_class})
+                def clean_pdf_text(text: str) -> str:
+                    if not text:
+                        return ""
+                    # Replace common unicode punctuation/symbols with safe ASCII equivalents
+                    replacements = {
+                        "\u2013": "-",  # en dash
+                        "\u2014": "-",  # em dash
+                        "\u2018": "'",  # left single quote
+                        "\u2019": "'",  # right single quote
+                        "\u201c": '"',  # left double quote
+                        "\u201d": '"',  # right double quote
+                        "\u2022": "*",  # bullet point
+                        "\u2026": "...",  # ellipsis
+                        "✈": "[Flight]",
+                        "🏨": "[Hotel]",
+                        "🚗": "[Transport]",
+                        "⚖": "[Compare]",
+                        "🧳": "[Trip]",
+                        "🏠": "[Home]",
+                        "📍": "[Location]",
+                        "👤": "[User]",
+                        "🤖": "[AI]",
+                        "🟢": "[Live]",
+                        "⚠️": "[Warning]",
+                        "💡": "[Tip]",
+                        "🕐": "[Time]",
+                        "💺": "[Seat]",
+                        "🔍": "[Search]",
+                        "🛰️": "[Satellite]",
+                        "🛰": "[Satellite]",
+                        "⬇️": "[Download]",
+                        "⬇": "[Download]",
+                        "📄": "[Document]",
+                        "🎯": "[Target]",
+                        "⭐": "[Star]",
+                        "🌟": "[Star]",
+                        "✓": "[Yes]",
+                        "✔": "[Yes]",
+                        "❌": "[No]",
+                        "—": "-",
+                        "•": "-",
+                    }
+                    for k, v in replacements.items():
+                        text = text.replace(k, v)
+                    # Encode to latin-1 and ignore any leftover unsupported characters, then decode back to string
+                    try:
+                        return text.encode("latin-1", "ignore").decode("latin-1")
+                    except Exception:
+                        return "".join(c for c in text if ord(c) < 256)
 
-🎯 Interests & Preferences
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📍  Main Interests: {', '.join(wz.wz_interests) if wz.wz_interests else 'General sightseeing'}
-🍽️  Food Preferences: {', '.join(wz.wz_food_prefs) if wz.wz_food_prefs else 'No specific preferences'}
+                class TripPDF(FPDF):
+                    def header(self):
+                        self.set_fill_color(18, 24, 38)
+                        self.rect(0, 0, 210, 30, 'F')
+                        self.set_font("Helvetica", "B", 16)
+                        self.set_text_color(255, 111, 0)
+                        self.set_xy(10, 8)
+                        self.cell(190, 10, "Pakistan Travel Intelligence", align="L")
+                        self.set_font("Helvetica", "", 9)
+                        self.set_text_color(180, 180, 180)
+                        self.set_xy(10, 18)
+                        self.cell(190, 6, "AI Trip Planner - Powered by Travel RAG System", align="L")
+                        self.set_xy(0, 30)
 
-📋 Detailed Itinerary
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                    def footer(self):
+                        self.set_y(-18)
+                        self.set_fill_color(18, 24, 38)
+                        self.rect(0, self.get_y(), 210, 20, 'F')
+                        self.set_font("Helvetica", "I", 8)
+                        self.set_text_color(120, 120, 120)
+                        self.cell(0, 10, f"Page {self.page_no()} | Visit Pakistan - Explore Beauty - Create Memories", align="C")
+
+                pdf = TripPDF()
+                pdf.set_auto_page_break(auto=True, margin=20)
+                pdf.add_page()
+                pdf.set_margins(15, 35, 15)
+
+                # ── Title Section ──
+                pdf.set_font("Helvetica", "B", 22)
+                pdf.set_text_color(255, 111, 0)
+                pdf.ln(4)
+                pdf.cell(0, 12, clean_pdf_text(f"{wz.wz_destination}, Pakistan"), align="C", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+
+                pdf.set_font("Helvetica", "", 12)
+                pdf.set_text_color(80, 80, 80)
+                pdf.cell(0, 7, clean_pdf_text(f"{wz.wz_duration}-Day Travel Itinerary"), align="C", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+                pdf.ln(4)
+
+                # ── Orange separator line ──
+                pdf.set_draw_color(255, 87, 34)
+                pdf.set_line_width(0.8)
+                pdf.line(15, pdf.get_y(), 195, pdf.get_y())
+                pdf.ln(6)
+
+                # ── Trip Overview Table ──
+                pdf.set_font("Helvetica", "B", 13)
+                pdf.set_text_color(40, 40, 40)
+                pdf.cell(0, 8, "Trip Overview", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+                pdf.ln(2)
+
+                overview_rows = [
+                    ("Destination", f"{wz.wz_destination}, Pakistan"),
+                    ("Duration", f"{wz.wz_duration} Days"),
+                    ("Group Type", f"{wz.wz_group_type} ({wz.wz_num_travelers} traveler(s))"),
+                    ("Travel Style", wz.wz_travel_style),
+                    ("Accommodation", f"{wz.wz_accom_type} - {wz.wz_room_type}"),
+                    ("Transport", f"{wz.wz_transport_type} ({wz.wz_transport_class})"),
+                    ("Interests", ", ".join(wz.wz_interests) if wz.wz_interests else "General sightseeing"),
+                    ("Food Preferences", ", ".join(wz.wz_food_prefs) if wz.wz_food_prefs else "No preference"),
+                ]
+
+                for i, (key, value) in enumerate(overview_rows):
+                    if i % 2 == 0:
+                        pdf.set_fill_color(248, 249, 250)
+                    else:
+                        pdf.set_fill_color(255, 255, 255)
+                    pdf.set_font("Helvetica", "B", 10)
+                    pdf.set_text_color(60, 60, 60)
+                    pdf.cell(52, 7, clean_pdf_text(f"  {key}"), border=1, fill=True)
+                    pdf.set_font("Helvetica", "", 10)
+                    pdf.set_text_color(30, 30, 30)
+                    # Truncate long values
+                    v = str(value)
+                    if len(v) > 70:
+                        v = v[:68] + "..."
+                    pdf.cell(128, 7, clean_pdf_text(f"  {v}"), border=1, fill=True, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+
+                pdf.ln(8)
+
+                # ── Itinerary Section ──
+                pdf.set_line_width(0.8)
+                pdf.set_draw_color(255, 87, 34)
+                pdf.line(15, pdf.get_y(), 195, pdf.get_y())
+                pdf.ln(5)
+
+                pdf.set_font("Helvetica", "B", 13)
+                pdf.set_text_color(40, 40, 40)
+                pdf.cell(0, 8, "Detailed Itinerary", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+                pdf.ln(3)
+
+                # Parse and render plan text
+                plan_lines = wz.wz_plan_text.replace("\r\n", "\n").split("\n")
+                for line in plan_lines:
+                    stripped = line.strip()
+                    if not stripped:
+                        pdf.ln(2)
+                        continue
+                    # Heading detection: ## or # or starts with Day
+                    if stripped.startswith("## ") or stripped.startswith("# "):
+                        pdf.set_font("Helvetica", "B", 12)
+                        pdf.set_text_color(200, 80, 0)
+                        heading = stripped.lstrip("#").strip()
+                        if len(heading) > 90:
+                            heading = heading[:88] + "..."
+                        pdf.cell(0, 7, clean_pdf_text(heading), new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+                        pdf.set_draw_color(255, 160, 80)
+                        pdf.set_line_width(0.3)
+                        pdf.line(15, pdf.get_y(), 195, pdf.get_y())
+                        pdf.ln(2)
+                    elif stripped.startswith("**") and stripped.endswith("**"):
+                        pdf.set_font("Helvetica", "B", 10)
+                        pdf.set_text_color(40, 40, 40)
+                        text = stripped.strip("*")
+                        if len(text) > 100:
+                            text = text[:98] + "..."
+                        pdf.cell(0, 6, clean_pdf_text(text), new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+                    else:
+                        pdf.set_font("Helvetica", "", 9)
+                        pdf.set_text_color(50, 50, 50)
+                        # Clean markdown
+                        clean = stripped.replace("**", "").replace("*", "").replace("###", "").replace("##", "").replace("#", "")
+                        # Word wrap
+                        wrapped = textwrap.wrap(clean, width=100)
+                        for wline in wrapped:
+                            pdf.cell(0, 5, clean_pdf_text(wline), new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+
+                pdf.ln(6)
+
+                # ── Travel Tips Section ──
+                pdf.add_page()
+                pdf.set_draw_color(255, 87, 34)
+                pdf.set_line_width(0.8)
+                pdf.line(15, pdf.get_y(), 195, pdf.get_y())
+                pdf.ln(5)
+                pdf.set_font("Helvetica", "B", 13)
+                pdf.set_text_color(40, 40, 40)
+                pdf.cell(0, 8, "Travel Tips & Important Information", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+                pdf.ln(3)
+
+                tips = [
+                    "Always carry valid identification documents (CNIC or Passport)",
+                    "Respect local customs and dress modestly in religious sites",
+                    "Try authentic Pakistani cuisine at local restaurants and dhabas",
+                    "Keep emergency contacts saved on your phone",
+                    "Check weather forecasts before planning outdoor activities",
+                    "Book accommodations in advance, especially during peak season (Jul-Sep)",
+                    "Exchange currency only at authorized banks or exchange centers",
+                    "Stay hydrated and carry essentials for day trips in northern areas",
+                    "Download offline maps - some remote areas have limited connectivity",
+                    "Join guided tours for remote trekking areas for safety",
+                ]
+                pdf.set_font("Helvetica", "", 10)
+                pdf.set_text_color(50, 50, 50)
+                for tip in tips:
+                    pdf.cell(6, 6, "-")
+                    pdf.cell(0, 6, clean_pdf_text(tip), new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+
+                pdf.ln(8)
+
+                # ── Emergency Contacts ──
+                pdf.set_draw_color(220, 50, 50)
+                pdf.set_line_width(0.8)
+                pdf.line(15, pdf.get_y(), 195, pdf.get_y())
+                pdf.ln(5)
+                pdf.set_font("Helvetica", "B", 13)
+                pdf.set_text_color(180, 30, 30)
+                pdf.cell(0, 8, "Emergency Contacts - Pakistan", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+                pdf.ln(3)
+
+                contacts = [
+                    ("Police Emergency", "15"),
+                    ("Rescue Services", "1122"),
+                    ("Tourist Helpline", "1422 / 051-9215538"),
+                    ("Fire Brigade", "16"),
+                    ("Edhi Foundation", "115"),
+                    ("Chippa Rescue", "1020"),
+                    ("PTDC Tourism", "+92-51-9204766"),
+                ]
+                pdf.set_font("Helvetica", "", 10)
+                pdf.set_text_color(40, 40, 40)
+                for name, number in contacts:
+                    pdf.set_font("Helvetica", "B", 10)
+                    pdf.cell(80, 7, clean_pdf_text(f"  {name}"), border=1, fill=False)
+                    pdf.set_font("Helvetica", "", 10)
+                    pdf.set_text_color(200, 60, 0)
+                    pdf.cell(100, 7, clean_pdf_text(f"  {number}"), border=1, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+                    pdf.set_text_color(40, 40, 40)
+
+                pdf.ln(8)
+
+                # ── Footer note ──
+                pdf.set_font("Helvetica", "I", 9)
+                pdf.set_text_color(120, 120, 120)
+                pdf.cell(0, 6, clean_pdf_text("Generated by Pakistan Travel Intelligence RAG System | For information only - verify details locally."), align="C", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+
+                return bytes(pdf.output())
+            except Exception as e:
+                # Log actual generation error
+                logging.getLogger("travel_rag").error(f"Error in PDF generation: {e}", exc_info=True)
+                raise e
+
+            except ImportError:
+                # Fallback to plain text if fpdf2 not installed
+                plan_text = f"""PAKISTAN TRAVEL ITINERARY
+Destination: {wz.wz_destination}, Pakistan
+Duration: {wz.wz_duration} Days | Group: {wz.wz_group_type} ({wz.wz_num_travelers} travelers)
+Style: {wz.wz_travel_style} | Stay: {wz.wz_accom_type} | Transport: {wz.wz_transport_type}
+
+DETAILED ITINERARY
+==================
 {wz.wz_plan_text}
 
-✨ Travel Tips & Important Information
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-• Always carry valid identification documents
-• Respect local customs and traditions
-• Try authentic Pakistani cuisine at local restaurants
-• Keep emergency contacts handy
-• Check weather conditions before outdoor activities
-• Book accommodations in advance during peak season
-• Exchange currency at authorized dealers
-• Stay hydrated and carry essentials for day trips
+EMERGENCY CONTACTS
+Police: 15 | Rescue: 1122 | Tourist Helpline: 1422
+"""
+                return plan_text.encode("utf-8")
 
-🚨 Emergency Contacts
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-• Police: 15
-• Rescue: 1122
-• Tourist Helpline: 1422
-• Fire Brigade: 16
-
-═══════════════════════════════════════════════════════════════════
-Generated by Pakistan Travel RAG System
-Visit Pakistan • Explore Beauty • Create Memories
-═══════════════════════════════════════════════════════════════════
-            """
-            return detailed_plan.strip()
-        
-        st.download_button(
-            label="📥 Download Trip Plan (doc)",
-            data=create_detailed_trip_plan(),
-            file_name=f"{wz.wz_destination.replace(' ','_')}_Detailed_Trip_Plan.txt",
-            mime="text/plain",
-            use_container_width=True,
-            key="wz_download"
-        )
+        # Generate and offer PDF download
+        st.markdown("---")
+        pdf_col1, pdf_col2 = st.columns([3, 1])
+        with pdf_col1:
+            st.markdown(
+                """
+                <div style="display:flex; align-items:center; gap:0.8rem;">
+                    <span style="font-size:1.5rem;">📄</span>
+                    <div>
+                        <div style="font-weight:600; color:#fff;">Download Complete Trip Plan as PDF</div>
+                        <div style="font-size:0.8rem; color:#9ca3af;">Well-formatted PDF with itinerary, tips & emergency contacts</div>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+        with pdf_col2:
+            try:
+                pdf_bytes = create_trip_pdf_bytes()
+                st.download_button(
+                    label="⬇️ Download PDF",
+                    data=pdf_bytes,
+                    file_name=f"{wz.wz_destination.replace(' ', '_')}_Trip_Plan.pdf",
+                    mime="application/pdf",
+                    use_container_width=True,
+                    key="wz_download"
+                )
+            except Exception as pdf_err:
+                st.error(f"PDF generation error: {pdf_err}")
 
 
 def _detect_destination_from_text(text: str) -> str:
@@ -3148,19 +3514,141 @@ def _detect_destination_from_text(text: str) -> str:
     return ""
 
 
+def detect_intent(query: str) -> str:
+    """
+    Detect the intent of a travel assistant query.
+    Returns one of:
+      'accommodation', 'road_transport', 'flights',
+      'destination_compare', 'trip_planner', 'destination_food',
+      'out_of_scope'
+    """
+    q = query.lower().strip()
+
+    # Accommodation keywords
+    accommodation_kw = [
+        "hotel", "guest house", "hostel", "stay", "room", "lodge",
+        "accommodation", "airbnb", "resort", "motel", "inn",
+        "bed", "check in", "check-in", "booking", "book a room",
+        "where to stay", "place to stay", "overnight"
+    ]
+    if any(kw in q for kw in accommodation_kw):
+        return "accommodation"
+
+    # Road transport keywords
+    road_transport_kw = [
+        "bus", "coach", "road", "drive", "car", "daewoo",
+        "natco", "niazi", "faisal movers", "bilal travels", "van",
+        "coaster", "intercity", "route", "transport", "travel by",
+        "lahore to", "karachi to", "islamabad to", "road trip",
+        "highway", "motorway", "passenger"
+    ]
+    if any(kw in q for kw in road_transport_kw):
+        return "road_transport"
+
+    # Flight search keywords
+    flight_kw = [
+        "flight", "airline", "pia", "air sial", "airsial", "fly jinnah",
+        "ticket", "airport", "fly", "flying", "plane", "aircraft",
+        "khi", "lhe", "isb", "departure", "arrival", "booking flight",
+        "book flight", "domestic flight", "air travel", "airways"
+    ]
+    if any(kw in q for kw in flight_kw):
+        return "flights"
+
+    # Destination compare keywords
+    compare_kw = [
+        "compare", "vs", "versus", "difference between", "which is better",
+        "better destination", "choose between", "prefer", "both",
+        "comparison", "or", "which one"
+    ]
+    if any(kw in q for kw in compare_kw) and any(dest in q for dest in [
+        "hunza", "skardu", "swat", "murree", "lahore", "karachi",
+        "islamabad", "peshawar", "quetta", "chitral", "gilgit", "naran"
+    ]):
+        return "destination_compare"
+
+    # Trip planner keywords
+    planner_kw = [
+        "plan", "itinerary", "schedule", "trip plan", "day by day",
+        "days in", "day trip", "travel plan", "plan my trip", "plan a trip",
+        "7 days", "5 days", "10 days", "week in", "tour plan"
+    ]
+    if any(kw in q for kw in planner_kw):
+        return "trip_planner"
+
+    # Destination food keywords
+    food_kw = [
+        "food", "restaurant", "cuisine", "eat", "dine", "dish",
+        "local food", "must eat", "must try", "street food", "biryani",
+        "karahi", "tikka", "kabab", "nihari", "halwa puri", "paya",
+        "breakfast", "lunch", "dinner", "cafe", "dhaba", "chai",
+        "local specialty", "best food"
+    ]
+    if any(kw in q for kw in food_kw):
+        return "destination_food"
+
+    # Destination info (general travel queries about known Pakistan places)
+    destination_kw = [
+        "hunza", "skardu", "swat", "murree", "naran", "kaghan",
+        "fairy meadows", "lahore", "karachi", "islamabad", "peshawar",
+        "quetta", "chitral", "gilgit", "neelum", "kumrat", "shogran",
+        "attabad", "k2", "deosai", "naltar", "kalash", "malam jabba",
+        "bahawalpur", "multan", "faisalabad", "taxila", "ziarat"
+    ]
+    if any(dest in q for dest in destination_kw):
+        # If asking about a destination generally (not covered above), allow it
+        return "accommodation"  # Treat as general destination query
+
+    return "out_of_scope"
+
+
 def page_travel_assistant() -> None:
     st.markdown(
         """
         <div class="hero-container">
             <p class="hero-title">🤖 AI Travel Assistant</p>
             <p class="hero-subtitle">
-                Your personal Pakistan travel expert — powered by RAG retrieval across all datasets.
-                Ask anything about destinations, hotels, transport, food, budgets and more.
+                Your Pakistan travel expert — ask about accommodation, flights, road transport,
+                destination food, comparing destinations, or planning your trip.
             </p>
         </div>
         """,
         unsafe_allow_html=True,
     )
+
+    # Show supported topics
+    st.markdown(
+        """
+        <div style="display:flex; flex-wrap:wrap; gap:0.5rem; margin-bottom:1.2rem;">
+            <span style="background:rgba(255,87,34,0.1); border:1px solid rgba(255,87,34,0.3);
+                         border-radius:20px; padding:0.3rem 0.8rem; font-size:0.78rem; color:#ffa726; font-weight:500;">
+                🏠 Accommodation
+            </span>
+            <span style="background:rgba(255,87,34,0.1); border:1px solid rgba(255,87,34,0.3);
+                         border-radius:20px; padding:0.3rem 0.8rem; font-size:0.78rem; color:#ffa726; font-weight:500;">
+                🚗 Road Transport
+            </span>
+            <span style="background:rgba(255,87,34,0.1); border:1px solid rgba(255,87,34,0.3);
+                         border-radius:20px; padding:0.3rem 0.8rem; font-size:0.78rem; color:#ffa726; font-weight:500;">
+                ✈️ Flight Search
+            </span>
+            <span style="background:rgba(255,87,34,0.1); border:1px solid rgba(255,87,34,0.3);
+                         border-radius:20px; padding:0.3rem 0.8rem; font-size:0.78rem; color:#ffa726; font-weight:500;">
+                ⚖️ Destination Compare
+            </span>
+            <span style="background:rgba(255,87,34,0.1); border:1px solid rgba(255,87,34,0.3);
+                         border-radius:20px; padding:0.3rem 0.8rem; font-size:0.78rem; color:#ffa726; font-weight:500;">
+                🧳 AI Trip Planner
+            </span>
+            <span style="background:rgba(255,87,34,0.1); border:1px solid rgba(255,87,34,0.3);
+                         border-radius:20px; padding:0.3rem 0.8rem; font-size:0.78rem; color:#ffa726; font-weight:500;">
+                🍽️ Destination Food
+            </span>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
 
     # ── Session state init ────────────────────────────────────────────────────
     if "assistant_history" not in st.session_state:
@@ -3263,6 +3751,24 @@ def page_travel_assistant() -> None:
     if send_btn and user_input and user_input.strip():
         query_text = user_input.strip()
 
+        # Intent detection - restrict assistant to supported topics
+        intent = detect_intent(query_text)
+        if intent == "out_of_scope":
+            st.session_state.assistant_history.append({"role": "user", "content": user_input.strip()})
+            out_of_scope_msg = (
+                "🤖 **I'm specialized for Pakistan travel topics only!** Here's what I can help with:\n\n"
+                "- 🏠 **Accommodation** — Hotels, guest houses, where to stay\n"
+                "- 🚗 **Road Transport** — Bus operators, routes, fares (Daewoo, NATCO, etc.)\n"
+                "- ✈️ **Flight Search** — Domestic flights, PIA, AirSial, Fly Jinnah\n"
+                "- ⚖️ **Destination Compare** — Compare two Pakistan destinations\n"
+                "- 🧳 **AI Trip Planner** — Complete day-by-day travel itineraries\n"
+                "- 🍽️ **Destination Food** — Local cuisine, restaurants, must-try dishes\n\n"
+                "*Try: 'Best hotels in Hunza?', 'Flights from Karachi to Lahore?', "
+                "'What to eat in Peshawar?', or 'Plan a 5-day trip to Swat'*"
+            )
+            st.session_state.assistant_history.append({"role": "assistant", "content": out_of_scope_msg})
+            st.rerun()
+
         # Follow-up context: detect new destination or keep existing
         detected_dest = _detect_destination_from_text(query_text)
         if detected_dest:
@@ -3280,27 +3786,15 @@ def page_travel_assistant() -> None:
                 retriever = get_retriever()
                 context = retriever.retrieve(query_text, top_k=10)
                 
-                # Use enhanced generator with confidence scoring
+                # Generate professional response
                 response = generate_answer(query_text, context, confidence_threshold=0.6)
                 chunks = context.chunks if context.has_results else []
-                
-                # Calculate and display confidence
-                confidence = getattr(context, 'confidence_score', 0.0)
-                if hasattr(context, 'confidence_score'):
-                    if confidence >= 0.8:
-                        conf_badge = f'<span style="color:#4CAF50;">High Confidence ({int(confidence*100)}%)</span>'
-                    elif confidence >= 0.6:
-                        conf_badge = f'<span style="color:#FF9800;">Medium Confidence ({int(confidence*100)}%)</span>'
-                    else:
-                        conf_badge = f'<span style="color:#F44336;">Low Confidence ({int(confidence*100)}%) - General Knowledge Used</span>'
-                    
-                    # Add confidence indicator to response
-                    response += f"\n\n📊 *Response Confidence: {conf_badge}*"
-                
+
             except Exception as e:
-                logger.error(f"Enhanced RAG assistant error: {e}")
-                response = f"⚠️ Error generating response: {str(e)}\n\nFor Pakistan travel information, please contact local tourism offices or try rephrasing your question."
+                logger.error(f"Travel assistant error: {e}")
+                response = f"⚠️ Something went wrong: {str(e)}\n\nPlease try rephrasing your question."
                 chunks = []
+
 
         resp_idx = len(st.session_state.assistant_history)
         st.session_state.assistant_history.append({"role": "assistant", "content": response})

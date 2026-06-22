@@ -23,57 +23,37 @@ logger = logging.getLogger(__name__)
 
 # ── System prompt ─────────────────────────────────────────────────────────────
 
-_SYSTEM_PROMPT = """You are an expert Pakistan travel assistant for a Pakistan Travel Intelligence platform.
-You ONLY answer questions using the provided context retrieved from the Pakistan travel knowledge base.
-You NEVER fabricate destinations, hotels, guest houses, activities, prices, or travel information.
-
-ACCOMMODATION RESTRICTIONS:
-- ONLY recommend Hotels and Guest Houses
-- NEVER recommend hostels, apartments, resorts, homestays, or other accommodation types
-- Base all recommendations strictly on the provided dataset context
+_SYSTEM_PROMPT = """You are a professional Pakistan travel expert assistant.
+Answer ONLY using the context provided below. Be concise, structured, and direct.
 
 Rules:
-1. Base every answer strictly on the retrieved context below.
-2. Focus exclusively on Pakistan tourism and travel.
-3. Use Pakistani Rupees (PKR) for all pricing and budget information.
-4. Use "Data-backed estimate" or "Based on available travel records" instead of showing CSV filenames.
-5. If the context does not contain enough information, say:
-   "The Pakistan travel knowledge base does not contain sufficient information to answer this query."
-6. Be concise, structured, and helpful for Pakistan travelers.
-7. When listing items use markdown bullet points.
-8. Highlight unique aspects of Pakistani culture, cuisine, and destinations.
-9. For accommodations, ONLY suggest Hotels or Guest Houses from the provided context.
-10. Never expose dataset filenames or technical details to users.
+1. Use the retrieved context to answer. Be specific — names, prices (PKR), addresses.
+2. Focus 100% on Pakistan travel: destinations, transport, food, accommodation, flights.
+3. For accommodation: ONLY mention Hotels and Guest Houses. Never mention hostels or resorts.
+4. Use Pakistani Rupees (PKR) for all prices.
+5. If context lacks detail, give your best expert answer from general Pakistan travel knowledge — do NOT say "contact local authorities".
+6. Use clear markdown: bullet points, bold headers. Keep answers under 300 words unless detail is essential.
+7. Never expose CSV filenames or technical database details.
+8. Do NOT add excessive disclaimers or suggest contacting tourism offices in every answer.
 """
 
-_TRAVEL_ASSISTANT_PROMPT = """You are a knowledgeable Pakistan travel assistant.
-Your role is to help travelers plan their trips to Pakistan with accurate and helpful information.
+_TRAVEL_ASSISTANT_PROMPT = """You are a professional Pakistan travel expert. Answer like a knowledgeable, friendly travel guide — confident, specific, and helpful.
 
-Guidelines:
-1. Focus exclusively on Pakistan travel, tourism, and related topics.
-2. For budget questions, provide realistic estimates in Pakistani Rupees (PKR).
-3. Be enthusiastic about Pakistan's natural beauty, culture, and hospitality.
-4. Provide practical and actionable travel advice.
-5. Include information about destinations, costs, activities, accommodation, and transportation.
-6. Always prioritize traveler safety and provide current general guidance.
-7. For non-travel questions, politely redirect to Pakistan travel topics.
+Strict rules:
+1. Answer ONLY Pakistan travel topics: accommodation, transport, food, flights, destinations, trip planning.
+2. Use PKR for all prices. Be specific with estimates.
+3. NEVER say "contact local tourism offices" — give the actual answer directly.
+4. NEVER add "Note: verify with authorities" footers.
+5. Keep answers concise (200-350 words max). Use bullet points and bold for structure.
+6. Be enthusiastic and positive about Pakistan travel.
+7. For accommodation: ONLY mention Hotels and Guest Houses.
 
-When discussing budgets:
-- Budget travel: 2,000-4,000 PKR per day
-- Mid-range travel: 5,000-12,000 PKR per day  
-- Luxury travel: 15,000+ PKR per day
+Budget benchmarks:
+- Budget: 2,000-5,000 PKR/day
+- Mid-range: 6,000-15,000 PKR/day
+- Luxury: 20,000+ PKR/day
 
-Popular Pakistan destinations include:
-- Karachi (beaches, food, culture)
-- Lahore (history, architecture, cuisine)
-- Islamabad (modern capital, Margalla Hills)
-- Hunza Valley (mountains, culture)
-- Skardu (K2 base, lakes)
-- Swat (green valleys, waterfalls)
-- Murree (hill station)
-- And many more beautiful locations
-
-Be helpful, informative, and encouraging about Pakistan travel experiences."""
+Key destinations: Karachi, Lahore, Islamabad, Hunza, Skardu, Swat, Murree, Naran, Gilgit, Chitral, Quetta, Peshawar, Multan, Hyderabad."""
 
 
 def _build_prompt(question: str, context: RetrievedContext) -> str:
@@ -183,28 +163,38 @@ def generate_travel_assistant_response(question: str) -> str:
 # ── Public API ────────────────────────────────────────────────────────────────
 
 def generate_answer(question: str, context: RetrievedContext, confidence_threshold: float = 0.6) -> str:
-    """Enhanced generation with confidence scoring and fallback logic."""
-    
-    # Calculate confidence if not already present
+    """Generate a professional, direct travel assistant response."""
+
+    # Calculate confidence
     if not hasattr(context, 'confidence_score'):
         context.confidence_score = _calculate_retrieval_confidence(context)
-    
-    # Check if we should use fallback
-    if not context.has_results or context.confidence_score < confidence_threshold:
-        return _generate_fallback_response(question, context.confidence_score if hasattr(context, 'confidence_score') else 0.0)
-    
-    # Use enhanced prompt with better source attribution
-    enhanced_prompt = _build_enhanced_prompt(question, context)
-    
-    response = _call_llm(enhanced_prompt)
-    
-    # Add appropriate attribution based on confidence
-    if context.confidence_score >= 0.8:
-        response += "\n\n📊 *Response based on comprehensive travel records in our Pakistan tourism database.*"
-    elif context.confidence_score >= 0.6:
-        response += "\n\n📊 *Response based on available travel records. For additional details, please verify with local sources.*"
-    
-    return response
+
+    # Always try to answer using context if available, otherwise use expert knowledge
+    if context.has_results:
+        prompt = _build_enhanced_prompt(question, context)
+    else:
+        # No context — answer from expert travel knowledge directly
+        prompt = (
+            f"{_SYSTEM_PROMPT}\n\n"
+            f"CONTEXT: No database records found for this specific query.\n\n"
+            f"USER QUESTION: {question}\n\n"
+            "ANSWER (use your expert Pakistan travel knowledge — be specific and helpful):"
+        )
+
+    response = _call_llm(prompt)
+
+    # Strip any leftover disclaimer footers the LLM may add
+    for footer in [
+        "\n\n📝 *Note:",
+        "\n\n📊 *Response Confidence:",
+        "\n\n📊 *Response based on",
+        "\nFor the most current information, please verify",
+        "\nI strongly advise you to contact local",
+    ]:
+        if footer in response:
+            response = response[:response.index(footer)]
+
+    return response.strip()
 
 
 def _calculate_retrieval_confidence(context: RetrievedContext) -> float:
@@ -273,39 +263,23 @@ Rules:
 
 
 def _generate_fallback_response(question: str, confidence: float = 0.0) -> str:
-    """Generate fallback response when knowledge base is insufficient."""
-    
-    fallback_prompt = f"""You are a Pakistan travel expert. The user asked: "{question}"
+    """Generate a direct expert response when knowledge base has low confidence."""
 
-Our travel database has limited information for this query (confidence: {confidence:.1f}).
-
-Provide helpful general information about Pakistan travel while:
-1. Clearly indicating this is general knowledge, not specific database information
-2. Focusing on Pakistan destinations, culture, and practical advice
-3. Suggesting they contact local tourism offices for current details
-4. Using Pakistani Rupees (PKR) for any pricing estimates
-5. Being helpful while acknowledging limitations
-
-Respond professionally and helpfully:"""
+    fallback_prompt = (
+        f"{_TRAVEL_ASSISTANT_PROMPT}\n\n"
+        f"User Question: {question}\n\n"
+        "Answer directly as a Pakistan travel expert. Be specific, concise and helpful. "
+        "Do NOT say 'contact local tourism offices'. Give the actual answer:"
+    )
 
     try:
-        response = _call_llm(fallback_prompt)
-        response += "\n\n📝 *Note: This response is based on general travel knowledge. For the most current information, please verify with Pakistan tourism authorities or local service providers.*"
-        return response
+        return _call_llm(fallback_prompt)
     except Exception as exc:
-        logger.error(f"Fallback generation failed: {exc}")
-        
-        return f"""I don't have specific information about "{question}" in our Pakistan travel database.
-
-For the most current information, I recommend:
-• **Pakistan Tourism Development Corporation (PTDC)**: Visit ptdc.gov.pk
-• **Local tourism offices** in major Pakistani cities
-• **Travel agencies** specializing in Pakistan tours
-• **Hotel and transport operators** directly
-
-📝 *Our database focuses on accommodations and destinations. For specialized queries, local experts are your best resource.*"""
-
-
+        return (
+            f"I don't have specific database records for this query. "
+            f"For detailed Pakistan travel assistance, please ask about specific "
+            f"destinations, hotels, transport, or food topics."
+        )
 
 
 
